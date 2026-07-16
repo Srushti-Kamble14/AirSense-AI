@@ -16,7 +16,7 @@ from app.config.settings import settings
 from app.database.database import get_engine
 from app.routes import api_router
 
-43
+
 configure_logging()
 logger = logging.getLogger(__name__)
 

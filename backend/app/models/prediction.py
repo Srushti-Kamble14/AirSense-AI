@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 
 from app.database.base import Base
 
@@ -26,4 +27,10 @@ class Prediction(Base):
     location = relationship(
         "Location",
         back_populates="predictions"
+    )
+
+    health_advisories = relationship(
+        "HealthAdvisory",
+        back_populates="prediction",
+     cascade="all, delete-orphan",
     )
