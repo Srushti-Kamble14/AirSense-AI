@@ -14,9 +14,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.config.logging import configure_logging
 from app.config.settings import settings
 from app.database.database import get_engine
+from app.database.init_db import init_db
 from app.routes import api_router
 
-43
 configure_logging()
 logger = logging.getLogger(__name__)
 
@@ -25,6 +25,11 @@ app = FastAPI(
     version=settings.API_VERSION,
     description="Backend infrastructure for the AirSenseAI smart city platform.",
 )
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    init_db(get_engine())
 
 
 @app.get("/")

@@ -1,11 +1,7 @@
-"""Declarative SQLAlchemy base for future ORM models.
-No database tables are declared or created in this foundation layer.
-Feature-specific models will inherit from Base when schemas are designed.
-"""
+"""Declarative SQLAlchemy base shared by all ORM models."""
+
 from sqlalchemy.orm import DeclarativeBase
+
 
 class Base(DeclarativeBase):
     pass
-
-# Import models so SQLAlchemy knows about them
-from app.models import *

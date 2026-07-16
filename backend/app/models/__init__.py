@@ -9,3 +9,4 @@ from .sensor import Sensor
 from .air_quality_data import AirQualityData
 from .weather_data import WeatherData
 from .prediction import Prediction
+from .health_advisory import HealthAdvisory

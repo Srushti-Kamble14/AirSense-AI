@@ -15,18 +15,18 @@ class Sensor(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     station_id = Column(
-                Integer,
-                ForeignKey("monitoring_stations.id"),
-                nullable=False
-                )
+        Integer,
+        ForeignKey("monitoring_stations.id"),
+        nullable=False
+    )
 
-station = relationship(
-    "MonitoringStation",
-    back_populates="sensors"
-)
+    station = relationship(
+        "MonitoringStation",
+        back_populates="sensors"
+    )
 
-air_quality_records = relationship(
-    "AirQualityData",
-    back_populates="sensor",
-    cascade="all, delete-orphan"
-)
+    air_quality_records = relationship(
+        "AirQualityData",
+        back_populates="sensor",
+        cascade="all, delete-orphan"
+    )

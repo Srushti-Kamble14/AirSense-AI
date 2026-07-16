@@ -34,3 +34,9 @@ class Location(Base):
         back_populates="location",
         cascade="all, delete-orphan"
     )
+
+    health_advisories = relationship(
+        "HealthAdvisory",
+        back_populates="location",
+        cascade="all, delete-orphan"
+    )
