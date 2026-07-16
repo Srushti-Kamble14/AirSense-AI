@@ -1,2 +1,12 @@
-# Backend dependency manifest for FastAPI, SQLAlchemy, APScheduler, and ML libraries.
-# Concrete package versions will be selected during implementation.
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg2-binary
+python-dotenv
+pydantic-settings
+apscheduler
+requests
+pandas
+numpy
+scikit-learn
+xgboost

@@ -1,0 +1,17 @@
+# Python runtime artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments and local configuration
+.venv/
+venv/
+env/
+.env
+
+# Logs and local database files
+*.log
+*.sqlite
+*.sqlite3
