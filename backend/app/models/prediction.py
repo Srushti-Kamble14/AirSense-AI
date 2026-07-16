@@ -27,3 +27,9 @@ class Prediction(Base):
         "Location",
         back_populates="predictions"
     )
+
+    health_advisories = relationship(
+        "HealthAdvisory",
+        back_populates="prediction",
+        cascade="all, delete-orphan"
+    )
