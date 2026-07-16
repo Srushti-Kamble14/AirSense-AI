@@ -1,0 +1,2 @@
+# Placeholder for the serialized AQI forecasting model artifact.
+# A real trained model file will replace this after the ML pipeline is implemented.

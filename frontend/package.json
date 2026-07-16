@@ -1,0 +1,14 @@
+{
+  "name": "airsense-ai-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Frontend workspace placeholder for the AirSenseAi smart city air quality platform.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
