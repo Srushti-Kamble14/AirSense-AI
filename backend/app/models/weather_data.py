@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, Float, String, DateTime
+from sqlalchemy import Column, Integer, Float, String, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.database.base import Base
@@ -18,3 +19,14 @@ class WeatherData(Base):
 
     recorded_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    location_id = Column(
+        Integer,
+        ForeignKey("locations.id"),
+        nullable=False
+    )
+
+    location = relationship(
+        "Location",
+        back_populates="weather_records"
+    )

@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.database.base import Base
@@ -13,3 +14,19 @@ class Sensor(Base):
     unit = Column(String)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    station_id = Column(
+                Integer,
+                ForeignKey("monitoring_stations.id"),
+                nullable=False
+                )
+
+station = relationship(
+    "MonitoringStation",
+    back_populates="sensors"
+)
+
+air_quality_records = relationship(
+    "AirQualityData",
+    back_populates="sensor",
+    cascade="all, delete-orphan"
+)

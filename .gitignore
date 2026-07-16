@@ -19,6 +19,12 @@ __pycache__/
 .venv/
 venv/
 env/
+venv/
+__pycache__/
+*.pyc
+.env
+.idea/
+.vscode/ 
 
 # Environment and secrets
 .env
