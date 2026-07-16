@@ -1,29 +1,34 @@
-// Root application layout for shared navigation, metadata, and global structure.
-// This file will wrap all App Router pages once frontend implementation begins.
+import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
+import "./globals.css";
 
-import Navbar from "../components/Navbar/Navbar.jsx";
-import Sidebar from "../components/Sidebar/Sidebar.jsx";
+const displayFont = Space_Grotesk({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["500", "600", "700"],
+});
 
+const bodyFont = Inter({
+  subsets: ["latin"],
+  variable: "--font-body",
+  weight: ["400", "500", "600"],
+});
+
+const monoFont = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  weight: ["400", "500"],
+});
 
 export const metadata = {
-  title: "AirSense-AI",
-  description: "AI-Powered Air Quality & Weather Monitoring",
+  title: "AirSenseAI — Atmospheric Intelligence Platform",
+  description:
+    "A living digital twin of the atmosphere. Real-time air quality, weather, and AI-driven forecasts.",
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body style={{ margin: 0, fontFamily: "sans-serif", display: "flex" }}>
-        <Sidebar />
-
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          <Navbar />
-
-          <main style={{ padding: "20px", minHeight: "100vh", backgroundColor: "#f9fafb" }}>
-            {children}
-          </main>
-        </div>
-      </body>
+    <html lang="en" className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable}`}>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

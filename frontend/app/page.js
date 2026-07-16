@@ -1,103 +1,143 @@
-// Home page for AirSenseAi's public entry point and project overview.
-// This placeholder will later introduce core air quality intelligence features.
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Power } from "lucide-react";
 
+import { BootScreen } from "@/components/boot/BootScreen";
+import { LiveSky } from "@/components/sky/LiveSky";
+import { LivingEarth } from "@/components/sky/LivingEarth";
+import { AirParticles } from "@/components/particles/AirParticles";
+import { WeatherFX } from "@/components/weather/WeatherFX";
+import { Header } from "@/components/layout/Header";
+import { AQISummaryCard } from "@/components/dashboard/AQISummaryCard";
+import { CityGrid } from "@/components/dashboard/CityGrid";
+import { WeeklyForecast } from "@/components/dashboard/WeeklyForecast";
+import { AirMapLoader } from "@/components/map/AirMapLoader";
+import { AIPrediction } from "@/components/prediction/AIPrediction";
+import { AIAssistant } from "@/components/ai/AIAssistant";
+import { DeveloperModeOverlay } from "@/components/effects/DeveloperModeOverlay";
+import { DroneFlyby } from "@/components/effects/DroneFlyby";
+import { MatrixBackground } from "@/components/effects/MatrixBackground";
+import { EndingSequence } from "@/components/effects/EndingSequence";
+import { Button } from "@/components/ui/button";
 
-export default function DashboardPage() {
+import { useTimeOfDay } from "@/hooks/useTimeOfDay";
+import { useEasterEggs } from "@/hooks/useEasterEggs";
+import { MOCK_CITIES, getCityById } from "@/data/mockCities";
+import { getWeeklyForecast } from "@/data/mockAQI";
 
-  const [liveData, setLiveData] = useState({
-    aqi: "Loading...",
-    weather: "Loading...",
-    status: "Fetching global feed..."
-  });
+export default function Home() {
+  const [booted, setBooted] = useState(false);
+  const [activeCity, setActiveCity] = useState(getCityById("delhi"));
+  const [previewCity, setPreviewCity] = useState(null);
+  const [ending, setEnding] = useState(false);
+  const [earthFast, setEarthFast] = useState(false);
 
-  useEffect(() => {
+  const { timeOfDay } = useTimeOfDay();
+  const {
+    developerMode,
+    droneVisible,
+    matrixMode,
+    assistantSass,
+    registerLogoClick,
+    registerLogoHoverStart,
+    registerLogoHoverEnd,
+    registerAssistantClick,
+  } = useEasterEggs();
 
-    const timer = setTimeout(() => {
-      setLiveData({
-        aqi: "42 (Good)",
-        weather: "28°C, Partly Cloudy",
-        status: "System Active"
-      });
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, []);
+  const displayedCity = previewCity ?? activeCity;
+  const weeklyForecast = getWeeklyForecast(displayedCity.id, displayedCity.aqi);
+  const showAurora = displayedCity.aqi < 60 && (timeOfDay === "night" || timeOfDay === "evening");
 
   return (
-    <div style={{ padding: "10px" }}>
-      {/* Header */}
-      <div style={{ marginBottom: "30px" }}>
-        <h1 style={{ fontSize: "28px", fontWeight: "bold", color: "#1f2937", margin: 0 }}>
-          AirSense-AI Dashboard
-        </h1>
-        <p style={{ color: "#6b7280", marginTop: "5px" }}>
-          Real-time Air Quality & Weather Analytics
-        </p>
-      </div>
+    <main className="relative min-h-screen">
+      {!booted && <BootScreen onComplete={() => setBooted(true)} />}
 
-      {/* Grid Layout for Cards */}
-      <div style={{ 
-        display: "grid", 
-        gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", 
-        gap: "20px" 
-      }}>
-        
-        {/* Air Quality Index Card */}
-        <div style={cardStyle}>
-          <div style={{ display: "flex", justifyContent: "between", alignItems: "center" }}>
-            <h3 style={cardTitleStyle}>Air Quality Index</h3>
-            <span style={{ backgroundColor: "#e6f4ea", color: "#137333", padding: "4px 8px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold" }}>Live</span>
+      {booted && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }}>
+          {/* Living background layers */}
+          <LiveSky timeOfDay={timeOfDay} showAurora={showAurora} className="fixed inset-0 z-0" />
+          <div className="fixed inset-0 z-0 grid-mask" />
+          <AirParticles
+            aqi={displayedCity.aqi}
+            windDeg={displayedCity.windDeg}
+            windSpeed={displayedCity.windSpeed}
+            humidity={displayedCity.humidity}
+            isRaining={displayedCity.weather === "rain" || displayedCity.weather === "thunderstorm"}
+            className="fixed inset-0 z-[1]"
+          />
+          <WeatherFX condition={displayedCity.weather} className="fixed inset-0 z-[1]" />
+          <div className="fixed inset-0 z-[1] noise-overlay" />
+
+          <MatrixBackground active={matrixMode} />
+          <DroneFlyby active={droneVisible} />
+          <DeveloperModeOverlay active={developerMode} />
+
+          <div className="relative z-10">
+            <Header
+              onSelectCity={(city) => {
+                setActiveCity(city);
+                setPreviewCity(null);
+              }}
+              onPreviewCity={setPreviewCity}
+              onLogoClick={registerLogoClick}
+              onLogoHoverStart={registerLogoHoverStart}
+              onLogoHoverEnd={registerLogoHoverEnd}
+              developerMode={developerMode}
+            />
+
+            <div className="container flex flex-col gap-6 py-8">
+              <div className="flex flex-col items-start justify-between gap-6 lg:flex-row">
+                <div className="w-full max-w-md">
+                  <AQISummaryCard city={displayedCity} />
+                </div>
+                <div className="flex w-full justify-center lg:w-auto">
+                  <LivingEarth
+                    size={220}
+                    fast={earthFast}
+                    onDoubleClick={() => {
+                      setEarthFast(true);
+                      setTimeout(() => setEarthFast(false), 4000);
+                    }}
+                    className="drop-shadow-[0_0_40px_rgba(43,227,176,0.15)]"
+                  />
+                </div>
+              </div>
+
+              <section>
+                <h3 className="mb-3 font-display text-xs uppercase tracking-widest text-muted-foreground">
+                  Monitored Cities
+                </h3>
+                <CityGrid cities={MOCK_CITIES} activeCityId={activeCity.id} onSelect={setActiveCity} />
+              </section>
+
+              <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+                <AirMapLoader
+                  cities={MOCK_CITIES}
+                  focusedCity={activeCity}
+                  onSelectCity={setActiveCity}
+                />
+                <div className="flex flex-col gap-6">
+                  <AIPrediction cityName={displayedCity.name} baseAqi={displayedCity.aqi} />
+                  <WeeklyForecast forecast={weeklyForecast} />
+                </div>
+              </section>
+
+              <div className="flex justify-center pt-4">
+                <Button variant="outline" size="sm" onClick={() => setEnding(true)} className="gap-2">
+                  <Power className="h-3.5 w-3.5" />
+                  End Session
+                </Button>
+              </div>
+            </div>
           </div>
-          <p style={cardValueStyle}>{liveData.aqi}</p>
-          <p style={{ color: "#6b7280", fontSize: "14px", margin: "10px 0 0 0" }}>PM2.5, PM10, and NO₂ levels are stable.</p>
-        </div>
 
-        {/* Weather Status Card */}
-        <div style={cardStyle}>
-          <div style={{ display: "flex", justifyContent: "between", alignItems: "center" }}>
-            <h3 style={cardTitleStyle}>Weather Status</h3>
-            <span style={{ backgroundColor: "#e8f0fe", color: "#1a73e8", padding: "4px 8px", borderRadius: "12px", fontSize: "12px", fontWeight: "bold" }}>Live</span>
-          </div>
-          <p style={cardValueStyle}>{liveData.weather}</p>
-          <p style={{ color: "#6b7280", fontSize: "14px", margin: "10px 0 0 0" }}>Humidity: 65% | Wind: 12 km/h</p>
-        </div>
+          <AIAssistant sassy={assistantSass} onAssistantClick={registerAssistantClick} />
+        </motion.div>
+      )}
 
-        {/* Quick System Alert Card */}
-        <div style={{ ...cardStyle, gridColumn: "1 / -1" }}>
-          <h3 style={cardTitleStyle}>System Health & Recommendations</h3>
-          <div style={{ padding: "12px", backgroundColor: "#fef3c7", borderRadius: "6px", color: "#92400e", marginTop: "10px", fontSize: "14px" }}>
-            <strong>Status:</strong> {liveData.status} — Safe to go out for a jog. Air quality is within standard limits.
-          </div>
-        </div>
-
-      </div>
-    </div>
+      <EndingSequence active={ending} onFinished={() => setEnding(false)} />
+    </main>
   );
 }
-
-
-const cardStyle = {
-  backgroundColor: "#ffffff",
-  border: "1px solid #e5e7eb",
-  borderRadius: "12px",
-  padding: "24px",
-  boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)"
-};
-
-const cardTitleStyle = {
-  fontSize: "16px",
-  fontWeight: "600",
-  color: "#4b5563",
-  margin: 0,
-  flex: 1
-};
-
-const cardValueStyle = {
-  fontSize: "32px",
-  fontWeight: "700",
-  color: "#111827",
-  margin: "15px 0 0 0"
-};

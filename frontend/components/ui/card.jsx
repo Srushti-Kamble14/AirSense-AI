@@ -1,0 +1,41 @@
+import { forwardRef } from "react";
+import { cn } from "@/lib/utils";
+
+const Card = forwardRef(({ className, ...props }, ref) => (
+  <div
+    ref={ref}
+    className={cn(
+      "rounded-lg border border-white/10 bg-card/60 text-foreground shadow-lg backdrop-blur-xl",
+      className
+    )}
+    {...props}
+  />
+));
+Card.displayName = "Card";
+
+const CardHeader = forwardRef(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("flex flex-col gap-1 p-5", className)} {...props} />
+));
+CardHeader.displayName = "CardHeader";
+
+const CardTitle = forwardRef(({ className, ...props }, ref) => (
+  <h3 ref={ref} className={cn("font-display text-sm font-semibold tracking-wide text-foreground/90", className)} {...props} />
+));
+CardTitle.displayName = "CardTitle";
+
+const CardDescription = forwardRef(({ className, ...props }, ref) => (
+  <p ref={ref} className={cn("text-xs text-muted-foreground", className)} {...props} />
+));
+CardDescription.displayName = "CardDescription";
+
+const CardContent = forwardRef(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("p-5 pt-0", className)} {...props} />
+));
+CardContent.displayName = "CardContent";
+
+const CardFooter = forwardRef(({ className, ...props }, ref) => (
+  <div ref={ref} className={cn("flex items-center p-5 pt-0", className)} {...props} />
+));
+CardFooter.displayName = "CardFooter";
+
+export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter };

@@ -1,0 +1,148 @@
+import { WEATHER_CONDITIONS } from "@/constants/weather";
+
+// Mock dataset — no network calls. Replace with live API data at integration time.
+export const MOCK_CITIES = [
+  {
+    id: "delhi",
+    name: "Delhi",
+    country: "India",
+    lat: 28.6139,
+    lng: 77.209,
+    aqi: 312,
+    weather: WEATHER_CONDITIONS.FOG,
+    temp: 19,
+    humidity: 68,
+    windSpeed: 6,
+    windDeg: 280,
+  },
+  {
+    id: "mumbai",
+    name: "Mumbai",
+    country: "India",
+    lat: 19.076,
+    lng: 72.8777,
+    aqi: 142,
+    weather: WEATHER_CONDITIONS.CLOUDY,
+    temp: 29,
+    humidity: 74,
+    windSpeed: 12,
+    windDeg: 210,
+  },
+  {
+    id: "bengaluru",
+    name: "Bengaluru",
+    country: "India",
+    lat: 12.9716,
+    lng: 77.5946,
+    aqi: 68,
+    weather: WEATHER_CONDITIONS.RAIN,
+    temp: 22,
+    humidity: 80,
+    windSpeed: 9,
+    windDeg: 190,
+  },
+  {
+    id: "beijing",
+    name: "Beijing",
+    country: "China",
+    lat: 39.9042,
+    lng: 116.4074,
+    aqi: 205,
+    weather: WEATHER_CONDITIONS.SUNNY,
+    temp: 12,
+    humidity: 34,
+    windSpeed: 14,
+    windDeg: 320,
+  },
+  {
+    id: "london",
+    name: "London",
+    country: "United Kingdom",
+    lat: 51.5072,
+    lng: -0.1276,
+    aqi: 41,
+    weather: WEATHER_CONDITIONS.CLOUDY,
+    temp: 14,
+    humidity: 71,
+    windSpeed: 18,
+    windDeg: 240,
+  },
+  {
+    id: "newyork",
+    name: "New York",
+    country: "United States",
+    lat: 40.7128,
+    lng: -74.006,
+    aqi: 55,
+    weather: WEATHER_CONDITIONS.CLEAR_NIGHT,
+    temp: 21,
+    humidity: 55,
+    windSpeed: 10,
+    windDeg: 90,
+  },
+  {
+    id: "tokyo",
+    name: "Tokyo",
+    country: "Japan",
+    lat: 35.6762,
+    lng: 139.6503,
+    aqi: 33,
+    weather: WEATHER_CONDITIONS.SUNNY,
+    temp: 24,
+    humidity: 60,
+    windSpeed: 7,
+    windDeg: 150,
+  },
+  {
+    id: "saopaulo",
+    name: "São Paulo",
+    country: "Brazil",
+    lat: -23.5505,
+    lng: -46.6333,
+    aqi: 88,
+    weather: WEATHER_CONDITIONS.THUNDERSTORM,
+    temp: 26,
+    humidity: 77,
+    windSpeed: 15,
+    windDeg: 60,
+  },
+  {
+    id: "moscow",
+    name: "Moscow",
+    country: "Russia",
+    lat: 55.7558,
+    lng: 37.6173,
+    aqi: 47,
+    weather: WEATHER_CONDITIONS.SNOW,
+    temp: -4,
+    humidity: 82,
+    windSpeed: 11,
+    windDeg: 300,
+  },
+  {
+    id: "lagos",
+    name: "Lagos",
+    country: "Nigeria",
+    lat: 6.5244,
+    lng: 3.3792,
+    aqi: 176,
+    weather: WEATHER_CONDITIONS.SUNNY,
+    temp: 31,
+    humidity: 65,
+    windSpeed: 8,
+    windDeg: 175,
+  },
+];
+
+export function searchCities(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  return MOCK_CITIES.filter(
+    (city) =>
+      city.name.toLowerCase().includes(q) || city.country.toLowerCase().includes(q)
+  ).slice(0, 6);
+}
+
+export function getCityById(id) {
+  return MOCK_CITIES.find((city) => city.id === id) ?? MOCK_CITIES[0];
+}
