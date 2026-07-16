@@ -7,17 +7,14 @@ from collections.abc import Generator
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.database.database import engine
+from app.database.database import get_engine
 
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False)
 
 
 def get_db() -> Generator[Session, None, None]:
-    if engine is None:
-        raise RuntimeError("DATABASE_URL is not configured.")
-
-    db = SessionLocal()
+    db = SessionLocal(bind=get_engine())
     try:
         yield db
     finally:
