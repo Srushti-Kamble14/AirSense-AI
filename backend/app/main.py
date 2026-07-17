@@ -16,6 +16,7 @@ from app.config.settings import settings
 from app.database.database import get_engine
 from app.database.init_db import init_db
 from app.routes import api_router
+from app.routes import openaq, weather
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -68,4 +69,6 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+app.include_router(openaq.router)
+app.include_router(weather.router)
 
