@@ -66,9 +66,32 @@ async def _geocode_city(city: str) -> dict[str, float]:
 
 
 def _build_headers() -> dict[str, str]:
+    print("=" * 50)
+    print("OPENAQ_API_KEY =", repr(settings.OPENAQ_API_KEY))
+    print("=" * 50)
+
     if not settings.OPENAQ_API_KEY:
         raise InvalidAPIKeyError("OpenAQ")
+
+    return {
+        "X-API-Key": settings.OPENAQ_API_KEY
+    }
+    print("API key loaded:", bool(settings.OPENAQ_API_KEY))
+    print("API key value:", repr(settings.OPENAQ_API_KEY))
+
+    if not settings.OPENAQ_API_KEY:
+        raise InvalidAPIKeyError("OpenAQ")
+
     return {"X-API-Key": settings.OPENAQ_API_KEY}
+    print("API key loaded:", bool(settings.OPENAQ_API_KEY))
+    print("API key:", settings.OPENAQ_API_KEY)
+
+    if not settings.OPENAQ_API_KEY:
+        raise InvalidAPIKeyError("OpenAQ")
+
+    return {
+        "X-API-Key": settings.OPENAQ_API_KEY
+    }
 
 
 async def _openaq_get(path: str, params: dict[str, Any] | None = None) -> dict:

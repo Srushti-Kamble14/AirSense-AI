@@ -22,10 +22,9 @@ class Settings:
     NOMINATIM_BASE_URL: str = "https://nominatim.openstreetmap.org"
 
     # Nominatim's usage policy requires a descriptive User-Agent identifying your app
-    NOMINATIM_USER_AGENT: str = "AQI-Prediction-System/1.0 (contact: your-email@example.com)"
+    NOMINATIM_USER_AGENT: str = "AirSenseAI/1.0"
 
     HTTP_TIMEOUT_SECONDS: float = 10.0
-
 
 @lru_cache
 def get_settings() -> Settings:
