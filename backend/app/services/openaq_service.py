@@ -66,6 +66,13 @@ async def _geocode_city(city: str) -> dict[str, float]:
 
 
 def _build_headers() -> dict[str, str]:
+
+    if not settings.OPENAQ_API_KEY:
+        raise InvalidAPIKeyError("OpenAQ")
+
+    return {
+        "X-API-Key": settings.OPENAQ_API_KEY
+    }
     print("=" * 50)
     print("OPENAQ_API_KEY =", repr(settings.OPENAQ_API_KEY))
     print("=" * 50)
@@ -233,3 +240,20 @@ async def get_merged_station_data(station_id: int) -> dict:
 
     merged["recorded_at"] = recorded_at
     return merged
+
+
+class OpenAQService:
+
+    @staticmethod
+    async def get_air_quality(city: str):
+
+        stations = await get_locations_by_city(city)
+
+        if not stations:
+            raise Exception(f"No monitoring station found for {city}")
+
+        station = stations[0]
+
+        return await get_merged_station_data(
+            station["station_id"]
+        )

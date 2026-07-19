@@ -17,6 +17,7 @@ from app.database.database import get_engine
 from app.database.init_db import init_db
 from app.routes import api_router
 from app.routes import openaq, weather
+from app.scheduler.scheduler import start_scheduler
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -29,8 +30,9 @@ app = FastAPI(
 
 
 @app.on_event("startup")
-def on_startup() -> None:
+async def startup():
     init_db(get_engine())
+    start_scheduler()
 
 
 @app.get("/")
@@ -59,6 +61,10 @@ def database_connection_test():
             },
         )
 
+@app.on_event("startup")
+async def startup():
+
+    start_scheduler()
 
 app.add_middleware(
     CORSMiddleware,

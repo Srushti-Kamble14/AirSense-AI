@@ -1,12 +1,10 @@
-"""SQLAlchemy engine configuration for PostgreSQL connectivity.
-This module prepares a reusable production-ready engine without creating tables.
-Connection credentials are read only from settings and never hardcoded.
-"""
+"""SQLAlchemy engine configuration for PostgreSQL connectivity."""
 
 from functools import lru_cache
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import sessionmaker
 
 from app.config.settings import settings
 
@@ -30,3 +28,13 @@ def create_database_engine() -> Engine:
 @lru_cache
 def get_engine() -> Engine:
     return create_database_engine()
+
+
+# -----------------------------
+# Session Factory
+# -----------------------------
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=get_engine(),
+)
