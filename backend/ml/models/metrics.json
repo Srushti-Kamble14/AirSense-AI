@@ -1,0 +1,100 @@
+{
+  "dataset": "D:\\Et-AI-Hackathon\\AirSense-AI\\backend\\ml\\datasets\\delhi_ncr_aqi_dataset.csv",
+  "target_column": "aqi",
+  "selected_features": [
+    "year",
+    "month",
+    "day",
+    "hour",
+    "day_of_week",
+    "is_weekend",
+    "season",
+    "city",
+    "station",
+    "latitude",
+    "longitude",
+    "pm25",
+    "pm10",
+    "no2",
+    "so2",
+    "co",
+    "o3",
+    "temperature",
+    "humidity",
+    "wind_speed",
+    "visibility"
+  ],
+  "rejected_columns": {
+    "datetime": "Raw timestamp/date has high cardinality; derived time columns are safer.",
+    "date": "Raw timestamp/date has high cardinality; derived time columns are safer.",
+    "aqi": "Target column.",
+    "aqi_category": "Derived from AQI and would leak the target."
+  },
+  "feature_reasons": {
+    "year": "Numeric feature retained because it may contain predictive signal.",
+    "month": "Time features capture seasonal, daily, and traffic-pattern effects.",
+    "day": "Time features capture seasonal, daily, and traffic-pattern effects.",
+    "hour": "Time features capture seasonal, daily, and traffic-pattern effects.",
+    "day_of_week": "Categorical context captures location and calendar patterns.",
+    "is_weekend": "Time features capture seasonal, daily, and traffic-pattern effects.",
+    "season": "Categorical context captures location and calendar patterns.",
+    "city": "Categorical context captures location and calendar patterns.",
+    "station": "Categorical context captures location and calendar patterns.",
+    "latitude": "Coordinates capture spatial variation between monitoring areas.",
+    "longitude": "Coordinates capture spatial variation between monitoring areas.",
+    "pm25": "Pollutant concentration directly drives AQI levels.",
+    "pm10": "Pollutant concentration directly drives AQI levels.",
+    "no2": "Pollutant concentration directly drives AQI levels.",
+    "so2": "Pollutant concentration directly drives AQI levels.",
+    "co": "Pollutant concentration directly drives AQI levels.",
+    "o3": "Pollutant concentration directly drives AQI levels.",
+    "temperature": "Temperature influences pollutant formation and dispersion.",
+    "humidity": "Humidity changes particulate behavior and visibility.",
+    "wind_speed": "Wind speed affects pollutant dispersion.",
+    "visibility": "Visibility is strongly inversely related to particulate pollution."
+  },
+  "model_comparison": [
+    {
+      "model": "Random Forest Regressor",
+      "mae": 0.015879224596423488,
+      "rmse": 0.1691453455796824,
+      "r2": 0.9999990268886617
+    },
+    {
+      "model": "Decision Tree Regressor",
+      "mae": 0.019198505772774977,
+      "rmse": 0.22913871863834093,
+      "r2": 0.9999982141729796
+    },
+    {
+      "model": "XGBoost Regressor",
+      "mae": 0.5552557706832886,
+      "rmse": 0.8436153798970008,
+      "r2": 0.9999758005142212
+    },
+    {
+      "model": "Gradient Boosting Regressor",
+      "mae": 0.8903459283774884,
+      "rmse": 1.4738182089612755,
+      "r2": 0.9999261194252674
+    },
+    {
+      "model": "Linear Regression",
+      "mae": 31.703337234896804,
+      "rmse": 38.298975665449184,
+      "r2": 0.9501096274923617
+    }
+  ],
+  "selected_model": "Random Forest Regressor",
+  "selected_model_reason": "Selected because it achieved the lowest RMSE on the held-out 20% test split; R2 is used as the tie-breaker.",
+  "test_metrics": {
+    "mae": 0.015879224596423488,
+    "rmse": 0.16914534557968244,
+    "r2": 0.9999990268886617
+  },
+  "plots": {
+    "feature_importance": "D:\\Et-AI-Hackathon\\AirSense-AI\\backend\\ml\\models\\feature_importance.png",
+    "actual_vs_predicted": "D:\\Et-AI-Hackathon\\AirSense-AI\\backend\\ml\\models\\actual_vs_predicted.png",
+    "residual_plot": "D:\\Et-AI-Hackathon\\AirSense-AI\\backend\\ml\\models\\residual_plot.png"
+  }
+}

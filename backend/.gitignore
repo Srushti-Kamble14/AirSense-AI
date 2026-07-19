@@ -19,3 +19,6 @@ env/
 venv/
 __pycache__/
 *.pyc 
+
+# Local ML datasets are large and should not be committed.
+ml/datasets/*.csv

@@ -43,6 +43,9 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Machine learning local datasets
+backend/ml/datasets/*.csv
+
 # Machine learning generated artifacts
 *.joblib
 *.onnx
