@@ -1,17 +1,13 @@
 """
 OpenAQ integration service.
 
-OpenAQ v3 (the only live version — v1/v2 were retired Jan 2025) does not
-support a free-text "city" query param. It only supports geospatial queries
-(coordinates + radius, or bbox). So the flow for "get stations for a city" is:
-
-    1. Geocode the city name -> (lat, lon)   [via OpenStreetMap Nominatim]
-    2. Query OpenAQ /v3/locations?coordinates=lat,lon&radius=...
-    3. For each location, sensors are already included in the response
-    4. For latest merged pollutant values, call /v3/locations/{id}/latest
-
-Nothing here touches the database — pure fetch/process/return, per the task.
+OpenAQ v3 is queried by coordinates, so this module owns geocoding,
+station lookup, latest pollutant reads, and nearest-station distance logic.
+Nothing here touches the database or ML artifacts.
 """
+import asyncio
+from datetime import datetime, timedelta
+from math import asin, cos, radians, sin, sqrt
 from typing import Any
 
 import httpx
@@ -29,7 +25,6 @@ from app.services.exceptions import (
 
 settings = get_settings()
 
-# Maps OpenAQ's internal parameter names to the flat keys our API returns
 PARAMETER_KEY_MAP = {
     "pm25": "pm25",
     "pm10": "pm10",
@@ -39,78 +34,142 @@ PARAMETER_KEY_MAP = {
     "o3": "o3",
 }
 
+GEOCODE_CACHE_TTL = timedelta(minutes=30)
+STATION_CACHE_TTL = timedelta(minutes=10)
+UPSTREAM_RETRY_ATTEMPTS = 2
+UPSTREAM_RETRY_BACKOFF_SECONDS = 0.35
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+_geocode_cache: dict[str, tuple[datetime, Any]] = {}
+_station_cache: dict[str, tuple[datetime, Any]] = {}
 
-async def _geocode_city(city: str) -> dict[str, float]:
-    """Resolve a city name to latitude/longitude using OpenStreetMap Nominatim."""
-    params = {"q": city, "format": "json", "limit": 1}
+
+def _http_timeout() -> httpx.Timeout:
+    total = min(float(settings.HTTP_TIMEOUT_SECONDS), 6.0)
+    return httpx.Timeout(total, connect=min(total, 2.5), read=total, write=3.0, pool=3.0)
+
+
+async def _get_with_retries(service: str, url: str, *, params: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> httpx.Response:
+    last_error: Exception | None = None
+
+    for attempt in range(UPSTREAM_RETRY_ATTEMPTS + 1):
+        try:
+            async with httpx.AsyncClient(timeout=_http_timeout()) as client:
+                resp = await client.get(url, params=params, headers=headers)
+
+            if resp.status_code not in RETRYABLE_STATUS_CODES or attempt == UPSTREAM_RETRY_ATTEMPTS:
+                return resp
+        except httpx.TimeoutException as exc:
+            last_error = exc
+            if attempt == UPSTREAM_RETRY_ATTEMPTS:
+                raise UpstreamTimeoutError(service) from exc
+        except httpx.RequestError as exc:
+            last_error = exc
+            if attempt == UPSTREAM_RETRY_ATTEMPTS:
+                raise UpstreamServiceError(service, str(exc)) from exc
+
+        await asyncio.sleep(UPSTREAM_RETRY_BACKOFF_SECONDS * (attempt + 1))
+
+    if isinstance(last_error, httpx.TimeoutException):
+        raise UpstreamTimeoutError(service)
+    if last_error:
+        raise UpstreamServiceError(service, str(last_error))
+    raise UpstreamServiceError(service, "retry attempts exhausted")
+
+
+def _cache_get(cache: dict[str, tuple[datetime, Any]], key: str, ttl: timedelta) -> Any | None:
+    item = cache.get(key)
+    if not item:
+        return None
+
+    stored_at, value = item
+    if datetime.utcnow() - stored_at > ttl:
+        cache.pop(key, None)
+        return None
+
+    return value
+
+
+def _cache_set(cache: dict[str, tuple[datetime, Any]], key: str, value: Any) -> Any:
+    cache[key] = (datetime.utcnow(), value)
+    return value
+
+
+def _cache_key(*parts: object) -> str:
+    return "|".join(str(part).strip().casefold() for part in parts)
+
+
+def _serialize_place(result: dict) -> dict:
+    address = result.get("address") or {}
+    city = (
+        address.get("city")
+        or address.get("town")
+        or address.get("village")
+        or address.get("municipality")
+        or address.get("county")
+    )
+
+    return {
+        "name": result.get("name") or result.get("display_name"),
+        "display_name": result.get("display_name"),
+        "latitude": float(result["lat"]),
+        "longitude": float(result["lon"]),
+        "city": city,
+        "state": address.get("state"),
+        "country": address.get("country"),
+    }
+
+
+async def geocode_place(query: str, limit: int = 1) -> list[dict]:
+    """Resolve a free-text place query using OpenStreetMap Nominatim."""
+    cleaned = query.strip()
+    if not cleaned:
+        return []
+
+    limit = max(1, min(limit, 8))
+    key = _cache_key("geocode", cleaned, limit)
+    cached = _cache_get(_geocode_cache, key, GEOCODE_CACHE_TTL)
+    if cached is not None:
+        return cached
+
+    params = {"q": cleaned, "format": "json", "addressdetails": 1, "limit": limit}
     headers = {"User-Agent": settings.NOMINATIM_USER_AGENT}
-
-    try:
-        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT_SECONDS) as client:
-            resp = await client.get(
-                f"{settings.NOMINATIM_BASE_URL}/search", params=params, headers=headers
-            )
-    except httpx.TimeoutException:
-        raise UpstreamTimeoutError("Geocoding")
-    except httpx.RequestError as exc:
-        raise UpstreamServiceError("Geocoding", str(exc))
+    resp = await _get_with_retries("Geocoding", f"{settings.NOMINATIM_BASE_URL}/search", params=params, headers=headers)
 
     if resp.status_code != 200:
         raise UpstreamServiceError("Geocoding", f"status {resp.status_code}")
 
     results = resp.json()
-    if not results:
-        raise CityNotFoundError(city)
+    places = [_serialize_place(result) for result in results if result.get("lat") and result.get("lon")]
+    if not places:
+        raise CityNotFoundError(cleaned)
 
-    return {"lat": float(results[0]["lat"]), "lon": float(results[0]["lon"])}
+    return _cache_set(_geocode_cache, key, places)
+
+
+async def _geocode_city(city: str) -> dict[str, float]:
+    """Resolve a city name to latitude/longitude using OpenStreetMap Nominatim."""
+    places = await geocode_place(city, limit=1)
+    return {"lat": places[0]["latitude"], "lon": places[0]["longitude"]}
 
 
 def _build_headers() -> dict[str, str]:
-    print("=" * 50)
-    print("OPENAQ_API_KEY =", repr(settings.OPENAQ_API_KEY))
-    print("=" * 50)
-
     if not settings.OPENAQ_API_KEY:
         raise InvalidAPIKeyError("OpenAQ")
-
-    return {
-        "X-API-Key": settings.OPENAQ_API_KEY
-    }
-    print("API key loaded:", bool(settings.OPENAQ_API_KEY))
-    print("API key value:", repr(settings.OPENAQ_API_KEY))
-
-    if not settings.OPENAQ_API_KEY:
-        raise InvalidAPIKeyError("OpenAQ")
-
     return {"X-API-Key": settings.OPENAQ_API_KEY}
-    print("API key loaded:", bool(settings.OPENAQ_API_KEY))
-    print("API key:", settings.OPENAQ_API_KEY)
-
-    if not settings.OPENAQ_API_KEY:
-        raise InvalidAPIKeyError("OpenAQ")
-
-    return {
-        "X-API-Key": settings.OPENAQ_API_KEY
-    }
 
 
 async def _openaq_get(path: str, params: dict[str, Any] | None = None) -> dict:
     """Shared helper for calling any OpenAQ v3 endpoint with consistent error handling."""
     headers = _build_headers()
     url = f"{settings.OPENAQ_BASE_URL}{path}"
-
-    try:
-        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT_SECONDS) as client:
-            resp = await client.get(url, params=params, headers=headers)
-    except httpx.TimeoutException:
-        raise UpstreamTimeoutError("OpenAQ")
-    except httpx.RequestError as exc:
-        raise UpstreamServiceError("OpenAQ", str(exc))
+    resp = await _get_with_retries("OpenAQ", url, params=params, headers=headers)
 
     if resp.status_code == 401:
         raise InvalidAPIKeyError("OpenAQ")
     if resp.status_code == 404:
         raise UpstreamServiceError("OpenAQ", "resource not found")
+    if resp.status_code in RETRYABLE_STATUS_CODES:
+        raise UpstreamTimeoutError("OpenAQ")
     if resp.status_code >= 400:
         raise UpstreamServiceError("OpenAQ", f"status {resp.status_code}: {resp.text[:200]}")
 
@@ -120,9 +179,7 @@ async def _openaq_get(path: str, params: dict[str, Any] | None = None) -> dict:
 def _serialize_location(location: dict) -> dict:
     """Turn a raw OpenAQ location object into our clean station shape."""
     sensors = location.get("sensors", [])
-    available_sensors = [
-        s["parameter"]["displayName"] for s in sensors if s.get("parameter")
-    ]
+    available_sensors = [s["parameter"]["displayName"] for s in sensors if s.get("parameter")]
     coords = location.get("coordinates") or {}
 
     return {
@@ -145,26 +202,60 @@ def _serialize_location(location: dict) -> dict:
 
 
 async def get_locations_by_city(city: str, radius_meters: int = 25000) -> list[dict]:
-    """
-    Step 1 + 2 of the task: geocode the city, then fetch monitoring stations
-    within `radius_meters` (OpenAQ's max allowed radius is 25,000m / 25km).
-    """
     coords = await _geocode_city(city)
+    return await get_locations_near_coords(coords["lat"], coords["lon"], city, radius_meters)
+
+
+async def get_locations_near_coords(lat: float, lon: float, label: str = "selected location", radius_meters: int = 25000) -> list[dict]:
+    """Fetch OpenAQ monitoring stations around a coordinate pair."""
+    radius = min(radius_meters, 25000)
+    key = _cache_key("stations", round(lat, 4), round(lon, 4), radius)
+    cached = _cache_get(_station_cache, key, STATION_CACHE_TTL)
+    if cached is not None:
+        return cached
 
     data = await _openaq_get(
         "/locations",
-        params={
-            "coordinates": f"{coords['lat']},{coords['lon']}",
-            "radius": min(radius_meters, 25000),
-            "limit": 100,
-        },
+        params={"coordinates": f"{lat},{lon}", "radius": radius, "limit": 100},
     )
 
     results = data.get("results", [])
     if not results:
-        raise NoStationsFoundError(city)
+        raise NoStationsFoundError(label)
 
-    return [_serialize_location(loc) for loc in results]
+    return _cache_set(_station_cache, key, [_serialize_location(loc) for loc in results])
+
+
+def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate great-circle distance between two points in kilometers."""
+    radius_km = 6371.0
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return 2 * radius_km * asin(sqrt(a))
+
+
+def nearest_station(place: dict, locations: list[dict]) -> dict | None:
+    """Pick the closest station to a serialized place."""
+    place_lat = place.get("latitude")
+    place_lon = place.get("longitude")
+    if place_lat is None or place_lon is None:
+        return None
+
+    candidates = []
+    for location in locations:
+        station_lat = location.get("latitude")
+        station_lon = location.get("longitude")
+        if station_lat is None or station_lon is None:
+            continue
+
+        distance = haversine_km(float(place_lat), float(place_lon), float(station_lat), float(station_lon))
+        candidates.append(({**location, "distance_km": round(distance, 2)}, distance))
+
+    if not candidates:
+        return None
+
+    return min(candidates, key=lambda item: item[1])[0]
 
 
 async def get_station_by_id(station_id: int) -> dict:
@@ -178,14 +269,8 @@ async def get_station_by_id(station_id: int) -> dict:
 
 
 async def get_sensor_measurement(sensor_id: int) -> dict:
-    """
-    Step 3 of the task: latest value, unit, and timestamp for one sensor.
-    Uses /v3/sensors/{id}/measurements sorted to the most recent single reading.
-    """
-    data = await _openaq_get(
-        f"/sensors/{sensor_id}/measurements",
-        params={"limit": 1, "page": 1},
-    )
+    """Fetch the latest value, unit, and timestamp for one sensor."""
+    data = await _openaq_get(f"/sensors/{sensor_id}/measurements", params={"limit": 1, "page": 1})
     results = data.get("results", [])
     if not results:
         raise SensorNotFoundError(sensor_id)
@@ -198,17 +283,12 @@ async def get_sensor_measurement(sensor_id: int) -> dict:
         "parameter": (latest.get("parameter") or {}).get("name"),
         "value": latest.get("value"),
         "unit": (latest.get("parameter") or {}).get("units"),
-        "timestamp": (period.get("datetimeTo") or {}).get("utc")
-        or (period.get("datetimeFrom") or {}).get("utc"),
+        "timestamp": (period.get("datetimeTo") or {}).get("utc") or (period.get("datetimeFrom") or {}).get("utc"),
     }
 
 
 async def get_merged_station_data(station_id: int) -> dict:
-    """
-    Step 4 of the task: merge every pollutant reading for a station into
-    a single flat object, using OpenAQ's per-location "latest" endpoint
-    (one call instead of one call per sensor).
-    """
+    """Merge latest pollutant readings for a station into a single flat object."""
     station = await get_station_by_id(station_id)
     sensor_by_id = {s["sensor_id"]: s for s in station["sensors"]}
 

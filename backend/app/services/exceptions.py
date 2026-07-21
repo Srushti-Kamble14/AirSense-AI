@@ -34,7 +34,10 @@ class SensorNotFoundError(ExternalAPIError):
 
 class UpstreamTimeoutError(ExternalAPIError):
     def __init__(self, service: str):
-        super().__init__(f"{service} API request timed out.", status_code=504)
+        super().__init__(
+            f"{service} API is temporarily unavailable after retrying. Please try again shortly.",
+            status_code=503,
+        )
 
 
 class InvalidAPIKeyError(ExternalAPIError):

@@ -1,106 +1,153 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, Marker, Polyline, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
-import { motion } from "framer-motion";
 import { renderToStaticMarkup } from "react-dom/server";
 import "leaflet/dist/leaflet.css";
 import { getAqiLevel } from "@/constants/aqi";
 
-function BreathingMarkerIcon({ color, severe }) {
+function formatNumber(value, suffix = "") {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return "--";
+  return `${Math.round(Number(value))}${suffix}`;
+}
+
+function hasCoords(point) {
+  return point?.latitude !== null && point?.latitude !== undefined && point?.longitude !== null && point?.longitude !== undefined;
+}
+
+export function AQIGlowLayer({ color }) {
+  return <span className="absolute inline-flex h-12 w-12 animate-ping rounded-full opacity-35" style={{ backgroundColor: color, boxShadow: `0 0 28px ${color}` }} />;
+}
+
+function ActiveMarkerIcon({ color, ring = true }) {
   return (
-    <div className="relative flex h-8 w-8 items-center justify-center">
-      <span
-        className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-40"
-        style={{ backgroundColor: color }}
-      />
-      <span
-        className="relative inline-flex h-4 w-4 rounded-full border-2 border-white/80"
-        style={{ backgroundColor: color, boxShadow: `0 0 14px ${color}` }}
-      />
-      {severe && (
-        <span
-          className="absolute -top-3 h-3 w-3 rounded-full opacity-60 blur-[2px]"
-          style={{ backgroundColor: "#c9c9c9" }}
-        />
-      )}
+    <div className="relative flex h-12 w-12 items-center justify-center">
+      {ring && <AQIGlowLayer color={color} />}
+      <span className="absolute h-8 w-8 rounded-full opacity-45 blur-md" style={{ backgroundColor: color }} />
+      <span className="relative inline-flex h-4 w-4 rounded-full border-2 border-white/90" style={{ backgroundColor: color, boxShadow: `0 0 18px ${color}` }} />
     </div>
   );
 }
 
-function makeDivIcon(color, severe) {
-  const html = renderToStaticMarkup(<BreathingMarkerIcon color={color} severe={severe} />);
+function makeDivIcon(color, ring = true) {
+  const html = renderToStaticMarkup(<ActiveMarkerIcon color={color} ring={ring} />);
   return L.divIcon({
     html,
     className: "airsense-marker",
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
+    iconSize: [48, 48],
+    iconAnchor: [24, 24],
+    popupAnchor: [0, -18],
   });
 }
 
-function FlyToCity({ city }) {
+function MapSizeController() {
   const map = useMap();
 
   useEffect(() => {
-    if (!city) {
-      return;
-    }
-
-    map.flyTo([city.lat, city.lng], 6, { duration: 1.4 });
-  }, [city, map]);
+    const timeout = setTimeout(() => map.invalidateSize(), 120);
+    return () => clearTimeout(timeout);
+  }, [map]);
 
   return null;
 }
 
-/**
- * @param {Array} cities - list of mock city objects (see data/mockCities.js)
- * @param {object} focusedCity - optional city to fly the camera to
- * @param {(city: object) => void} onSelectCity
- */
-export function AirMap({ cities, focusedCity, onSelectCity, height = 420 }) {
-  const icons = useMemo(() => {
-    const map = new Map();
-    cities.forEach((city) => {
-      const level = getAqiLevel(city.aqi);
-      map.set(city.id, makeDivIcon(level.color, city.aqi >= 201));
-    });
-    return map;
-  }, [cities]);
+export function MapController({ searchedLocation, station }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!hasCoords(searchedLocation)) return;
+
+    const userPoint = [searchedLocation.latitude, searchedLocation.longitude];
+    if (hasCoords(station)) {
+      const bounds = L.latLngBounds(userPoint, [station.latitude, station.longitude]).pad(0.32);
+      map.flyToBounds(bounds, { animate: true, duration: 1.35, maxZoom: 15, easeLinearity: 0.2 });
+      return;
+    }
+
+    map.flyTo(userPoint, 14, { animate: true, duration: 1.35, easeLinearity: 0.2 });
+  }, [searchedLocation, station, map]);
+
+  return null;
+}
+
+function SearchedMarker({ location }) {
+  const icon = useMemo(() => makeDivIcon("#3b82f6"), []);
+  if (!hasCoords(location)) return null;
 
   return (
-    <div style={{ height }} className="overflow-hidden rounded-lg border border-white/10">
-      <MapContainer
-        center={[20, 30]}
-        zoom={2}
-        scrollWheelZoom
-        style={{ height: "100%", width: "100%", background: "#0a0f1a" }}
-      >
-        <TileLayer
-          attribution='&copy; OpenStreetMap contributors, &copy; CARTO'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        />
-        {focusedCity && <FlyToCity city={focusedCity} />}
-        {cities.map((city) => {
-          const level = getAqiLevel(city.aqi);
-          return (
-            <Marker
-              key={city.id}
-              position={[city.lat, city.lng]}
-              icon={icons.get(city.id)}
-              eventHandlers={{ click: () => onSelectCity?.(city) }}
-            >
-              <Popup>
-                <div className="font-sans text-sm">
-                  <p className="font-semibold">{city.name}</p>
-                  <p style={{ color: level.color }}>
-                    AQI {city.aqi} · {level.label}
-                  </p>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+    <Marker position={[location.latitude, location.longitude]} icon={icon}>
+      <Popup>
+        <div className="min-w-52 font-sans text-sm text-slate-900">
+          <p className="font-semibold">Searched location</p>
+          <p className="mt-1 text-xs leading-relaxed text-slate-700">{location.displayName || location.display_name || location.label || location.name || location.city}</p>
+        </div>
+      </Popup>
+    </Marker>
+  );
+}
+
+export function AQIMarker({ station, prediction }) {
+  const predictedAqi = prediction?.prediction?.predicted_aqi ?? 0;
+  const level = getAqiLevel(predictedAqi);
+  const icon = useMemo(() => makeDivIcon(level.color), [level.color]);
+
+  if (!hasCoords(station)) return null;
+
+  const weather = prediction?.weather ?? {};
+  const category = prediction?.prediction?.category ?? level.label;
+  const healthAdvisory = prediction?.health_advisory ?? "Prediction not loaded yet.";
+
+  return (
+    <Marker position={[station.latitude, station.longitude]} icon={icon}>
+      <Popup>
+        <div className="min-w-56 font-sans text-sm text-slate-900">
+          <p className="font-semibold">Nearest station: {station.name}</p>
+          <div className="mt-2 grid gap-1">
+            <p>Distance: {station.distance_km ?? "--"} km</p>
+            <p>Provider: {station.provider || "OpenAQ"}</p>
+            <p>Predicted AQI: {formatNumber(predictedAqi)}</p>
+            <p>Category: <span style={{ color: level.color }}>{category}</span></p>
+            <p>Temperature: {formatNumber(weather.temperature, " C")}</p>
+            <p>Humidity: {formatNumber(weather.humidity, "%")}</p>
+            <p>Wind: {formatNumber(weather.wind_speed, " km/h")}</p>
+          </div>
+          <p className="mt-3 font-semibold">Health Advisory</p>
+          <p className="mt-1 text-xs leading-relaxed text-slate-700">{healthAdvisory}</p>
+        </div>
+      </Popup>
+    </Marker>
+  );
+}
+
+function ConnectionLine({ searchedLocation, station }) {
+  if (!hasCoords(searchedLocation) || !hasCoords(station)) return null;
+  return (
+    <Polyline
+      positions={[
+        [searchedLocation.latitude, searchedLocation.longitude],
+        [station.latitude, station.longitude],
+      ]}
+      pathOptions={{ color: "#7dd3fc", weight: 2, opacity: 0.72, dashArray: "8 12", lineCap: "round" }}
+      className="airsense-station-link"
+    />
+  );
+}
+
+export function AirMap({ activeLocation, prediction, height = 420 }) {
+  const searchedLocation = prediction?.searched_location ?? activeLocation;
+  const station = prediction?.nearest_station;
+  const initialCenter = hasCoords(searchedLocation) ? [searchedLocation.latitude, searchedLocation.longitude] : [28.6139, 77.209];
+
+  return (
+    <div style={{ height }} className="relative z-0 w-full overflow-hidden rounded-lg border border-white/10">
+      <MapContainer center={initialCenter} zoom={14} scrollWheelZoom style={{ height: "100%", width: "100%", background: "#0a0f1a" }}>
+        <TileLayer attribution='&copy; OpenStreetMap contributors, &copy; CARTO' url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+        <MapSizeController />
+        <MapController searchedLocation={searchedLocation} station={station} />
+        <ConnectionLine searchedLocation={searchedLocation} station={station} />
+        <SearchedMarker location={searchedLocation} />
+        <AQIMarker station={station} prediction={prediction} />
       </MapContainer>
     </div>
   );

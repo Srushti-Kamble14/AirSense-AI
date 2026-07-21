@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Activity, BrainCircuit, CircleDot, MapPin, Power, Radar, Satellite, ShieldCheck, Sparkles, Wind } from "lucide-react";
 
@@ -13,6 +13,7 @@ import { AQISummaryCard } from "@/components/dashboard/AQISummaryCard";
 import { WeeklyForecast } from "@/components/dashboard/WeeklyForecast";
 import { AirMapLoader } from "@/components/map/AirMapLoader";
 import { AIPrediction } from "@/components/prediction/AIPrediction";
+import { PredictionUpdater } from "@/components/prediction/PredictionUpdater";
 import { AIAssistant } from "@/components/ai/AIAssistant";
 import { DeveloperModeOverlay } from "@/components/effects/DeveloperModeOverlay";
 import { DroneFlyby } from "@/components/effects/DroneFlyby";
@@ -27,6 +28,9 @@ import { useEasterEggs } from "@/hooks/useEasterEggs";
 import { MOCK_CITIES, getCityById } from "@/data/mockCities";
 import { getWeeklyForecast } from "@/data/mockAQI";
 import { getAqiLevel } from "@/constants/aqi";
+import { WEATHER_CONDITIONS } from "@/constants/weather";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8001";
 
 const scanSteps = [
   "AI receiving atmospheric request",
@@ -36,6 +40,51 @@ const scanSteps = [
   "Pollution model rebuilding",
   "Health advisory updating",
 ];
+
+function cityLocation(city) {
+  return {
+    id: `city-${city.id}`,
+    type: "city",
+    label: city.name,
+    city: city.name,
+    latitude: city.lat,
+    longitude: city.lng,
+    aqi: city.aqi,
+  };
+}
+
+function mapWeatherCondition(condition, fallback) {
+  const normalized = String(condition ?? "").toLowerCase();
+  if (normalized.includes("thunder")) return WEATHER_CONDITIONS.THUNDERSTORM;
+  if (normalized.includes("rain") || normalized.includes("drizzle")) return WEATHER_CONDITIONS.RAIN;
+  if (normalized.includes("snow")) return WEATHER_CONDITIONS.SNOW;
+  if (normalized.includes("mist") || normalized.includes("fog") || normalized.includes("haze") || normalized.includes("smoke")) return WEATHER_CONDITIONS.FOG;
+  if (normalized.includes("cloud")) return WEATHER_CONDITIONS.CLOUDY;
+  if (normalized.includes("clear")) return WEATHER_CONDITIONS.SUNNY;
+  return fallback ?? WEATHER_CONDITIONS.CLOUDY;
+}
+
+function windToKmh(value, fallback) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return fallback;
+  return Math.round(Number(value) * 3.6);
+}
+
+function addRecentSearch(items, item) {
+  const compact = {
+    id: item.id,
+    type: item.type,
+    label: item.label,
+    city: item.city,
+    sublabel: item.sublabel,
+    displayName: item.displayName,
+    latitude: item.latitude,
+    longitude: item.longitude,
+    state: item.state,
+    country: item.country,
+    payload: item.payload,
+  };
+  return [compact, ...items.filter((existing) => existing.id !== compact.id)].slice(0, 5);
+}
 
 function useScanSequence(city) {
   const [scanCity, setScanCity] = useState(null);
@@ -95,8 +144,8 @@ function AtmosphereCursor() {
 
 function AtmosphericIntelligenceStrip({ city, level }) {
   const items = [
-    { label: "Wind", value: `${city.windSpeed} km/h`, icon: Wind },
-    { label: "Humidity", value: `${city.humidity}%`, icon: Activity },
+    { label: "Wind", value: `${city.windSpeed ?? "--"} km/h`, icon: Wind },
+    { label: "Humidity", value: `${city.humidity ?? "--"}%`, icon: Activity },
     { label: "Health", value: city.aqi > 200 ? "Mask advised" : "Routine safe", icon: ShieldCheck },
     { label: "Model", value: "AI live", icon: BrainCircuit },
   ];
@@ -151,7 +200,7 @@ function PlanetaryScan({ city, step, level }) {
               <Satellite className="h-6 w-6" style={{ color: level.color }} />
             </div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Planetary scan</p>
-            <h3 className="mt-1 font-display text-2xl text-white">{city.name}</h3>
+            <h3 className="mt-1 font-display text-2xl text-white">{city.stationName ?? city.name}</h3>
             <p className="mt-4 font-mono text-xs text-cyan-100/80">{scanSteps[step]}</p>
           </motion.div>
         </motion.div>
@@ -161,9 +210,17 @@ function PlanetaryScan({ city, step, level }) {
 }
 
 export default function Home() {
+  const initialCity = getCityById("delhi");
   const [booted, setBooted] = useState(false);
-  const [activeCity, setActiveCity] = useState(getCityById("delhi"));
-  const [previewCity, setPreviewCity] = useState(null);
+  const [activeCity, setActiveCity] = useState(initialCity);
+  const [activeLocation, setActiveLocation] = useState(() => cityLocation(initialCity));
+  const [prediction, setPrediction] = useState(null);
+  const [predictionLoading, setPredictionLoading] = useState(false);
+  const [predictionError, setPredictionError] = useState(null);
+  const [stationCache, setStationCache] = useState({});
+  const [, setLoadingStations] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [recentSearches, setRecentSearches] = useState([]);
   const [lastScannedCity, setLastScannedCity] = useState(null);
   const [ending, setEnding] = useState(false);
   const [earthFast, setEarthFast] = useState(false);
@@ -180,7 +237,75 @@ export default function Home() {
     registerAssistantClick,
   } = useEasterEggs();
 
-  const displayedCity = previewCity ?? activeCity;
+  const activeCityName = activeLocation.city;
+  const cityStations = stationCache[activeCityName] ?? [];
+  const stationsLoaded = Boolean(stationCache[activeCityName]);
+
+  const handleLoading = useCallback((loading) => {
+    setPredictionLoading(loading);
+  }, []);
+
+  const handlePrediction = useCallback((data) => {
+    setPrediction(data);
+    setPredictionError(null);
+  }, []);
+
+  const handlePredictionError = useCallback((message) => {
+    const text = message === "Station not found" ? "Station not found" : message || "Unable to fetch prediction.";
+    setPredictionError(text);
+    setToast(text);
+  }, []);
+
+  useEffect(() => {
+    const city = activeCityName;
+    if (!city || stationsLoaded) return undefined;
+
+    const controller = new AbortController();
+    setLoadingStations(true);
+
+    fetch(`${API_BASE_URL}/locations?city=${encodeURIComponent(city)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => []);
+        if (!response.ok) throw new Error(payload.detail || "Unable to fetch stations.");
+        return payload;
+      })
+      .then((stations) => {
+        setStationCache((cache) => ({ ...cache, [city]: stations }));
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") setToast("Unable to fetch stations.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingStations(false);
+      });
+
+    return () => controller.abort();
+  }, [activeCityName, stationsLoaded]);
+
+  const displayedCity = useMemo(() => {
+    const weather = prediction?.weather ?? {};
+    const predictedAqi = prediction?.prediction?.predicted_aqi;
+    const searched = prediction?.searched_location;
+    const nearest = prediction?.nearest_station;
+    const name = searched?.name || activeLocation.label || activeLocation.city || activeCity.name;
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || activeCity.id;
+
+    return {
+      ...activeCity,
+      id,
+      name,
+      stationName: nearest?.name ?? null,
+      lat: searched?.latitude ?? activeLocation.latitude ?? activeCity.lat,
+      lng: searched?.longitude ?? activeLocation.longitude ?? activeCity.lng,
+      aqi: predictedAqi ?? activeLocation.aqi ?? activeCity.aqi,
+      temp: weather.temperature !== undefined ? Math.round(weather.temperature) : activeCity.temp,
+      humidity: weather.humidity ?? activeCity.humidity,
+      windSpeed: windToKmh(weather.wind_speed, activeCity.windSpeed),
+      windDeg: weather.wind_direction ?? activeCity.windDeg,
+      weather: mapWeatherCondition(weather.condition, activeCity.weather),
+    };
+  }, [activeCity, activeLocation, prediction]);
+
   const level = getAqiLevel(displayedCity.aqi);
   const weeklyForecast = getWeeklyForecast(displayedCity.id, displayedCity.aqi);
   const showAurora = displayedCity.aqi < 60 && (timeOfDay === "night" || timeOfDay === "evening");
@@ -194,14 +319,57 @@ export default function Home() {
     return "env-good";
   }, [displayedCity.aqi]);
 
-  const selectCity = (city) => {
+  const onPredictionError = useCallback((message) => {
+    const text = message || "Unable to fetch prediction.";
+    setPredictionError(text);
+    setToast(text);
+  }, []);
+
+  const selectLocation = useCallback((item) => {
+    const city = MOCK_CITIES.find((candidate) => item.city && candidate.name.toLowerCase() === item.city.toLowerCase()) ?? activeCity;
+    const placeLocation = {
+      id: item.id,
+      type: "place",
+      label: item.label,
+      city: item.city || item.label,
+      latitude: item.latitude ?? city.lat,
+      longitude: item.longitude ?? city.lng,
+      displayName: item.displayName || item.sublabel || item.label,
+      state: item.state,
+      country: item.country,
+      payload: item.payload,
+    };
+
     setActiveCity(city);
-    setPreviewCity(null);
-    setLastScannedCity(city);
-  };
+    setActiveLocation(placeLocation);
+    setLastScannedCity({ ...city, name: item.label, stationName: null });
+    setPrediction(null);
+    setPredictionError(null);
+    setRecentSearches((items) => addRecentSearch(items, placeLocation));
+  }, [activeCity]);
+
+  const refreshPrediction = useCallback(() => {
+    setActiveLocation((location) => ({ ...location, refreshKey: Date.now() }));
+    setLastScannedCity(displayedCity);
+  }, [displayedCity]);
+
+  const activeMapLocation = useMemo(() => ({
+    ...activeLocation,
+    latitude: activeLocation.latitude ?? displayedCity.lat,
+    longitude: activeLocation.longitude ?? displayedCity.lng,
+    aqi: displayedCity.aqi,
+  }), [activeLocation, displayedCity]);
 
   return (
     <main className={`atmospheric-os ${environmentClass} relative min-h-screen overflow-hidden text-white`}>
+      <PredictionUpdater
+        apiBaseUrl={API_BASE_URL}
+        location={activeLocation}
+        onLoading={handleLoading}
+        onPrediction={handlePrediction}
+        onError={handlePredictionError}
+      />
+
       {!booted && <BootScreen onComplete={() => setBooted(true)} />}
 
       {booted && (
@@ -237,6 +405,20 @@ export default function Home() {
           <PlanetaryScan city={scanCity} step={step} level={level} />
           <AtmosphereCursor />
 
+          <AnimatePresence>
+            {toast && (
+              <motion.div
+                initial={{ opacity: 0, y: -12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                onAnimationComplete={() => setTimeout(() => setToast(null), 2600)}
+                className="fixed right-4 top-4 z-[80] rounded-md border border-red-400/30 bg-red-500/15 px-4 py-3 text-sm text-red-50 shadow-xl backdrop-blur-xl"
+              >
+                {toast}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="relative z-10 min-h-screen px-4 py-5 sm:px-6 lg:px-8">
             <header className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
               <motion.button
@@ -256,10 +438,15 @@ export default function Home() {
                 </span>
               </motion.button>
 
-              <SuperSearch onSelect={selectCity} onPreview={setPreviewCity} className="order-3 w-full md:order-2 md:w-[380px]" />
+              <SuperSearch
+                apiBaseUrl={API_BASE_URL}
+                recentSearches={recentSearches}
+                onSelectLocation={selectLocation}
+                className="order-3 w-full md:order-2 md:w-[380px]"
+              />
 
               <div className="order-2 flex items-center gap-2 md:order-3">
-                <Button variant="outline" size="sm" onClick={() => setLastScannedCity(displayedCity)} className="gap-2">
+                <Button variant="outline" size="sm" onClick={refreshPrediction} disabled={predictionLoading} className="gap-2">
                   <Radar className="h-3.5 w-3.5" />
                   Rescan
                 </Button>
@@ -302,12 +489,12 @@ export default function Home() {
                   transition={{ duration: 0.8, delay: 0.28 }}
                   className="mt-8 flex flex-wrap items-center gap-3"
                 >
-                  <Button size="lg" onClick={() => setLastScannedCity(displayedCity)} className="magnetic-button gap-2">
+                  <Button size="lg" onClick={refreshPrediction} disabled={predictionLoading} className="magnetic-button gap-2">
                     <Satellite className="h-4 w-4" />
                     Explore Live Atmosphere
                   </Button>
                   <div className="text-sm text-white/50">
-                    {displayedCity.name}, {displayedCity.country} / AQI {displayedCity.aqi} / {level.label}
+                    {displayedCity.stationName ? `${displayedCity.stationName}, ` : ""}{displayedCity.name} / AQI {Math.round(displayedCity.aqi)} / {level.label}
                   </div>
                 </motion.div>
 
@@ -326,18 +513,25 @@ export default function Home() {
                     </div>
                     <MapPin className="h-5 w-5" style={{ color: level.color }} />
                   </div>
-                  <AirMapLoader cities={MOCK_CITIES} focusedCity={activeCity} onSelectCity={selectCity} height={260} />
+                  <AirMapLoader activeLocation={activeMapLocation} prediction={prediction} height={260} />
                 </GlassCard>
               </div>
             </section>
 
             <section className="mx-auto grid max-w-7xl gap-5 pb-10 lg:grid-cols-[1fr_1fr]">
-              <AIPrediction cityName={displayedCity.name} baseAqi={displayedCity.aqi} />
+              <AIPrediction
+                cityName={displayedCity.name}
+                stationName={displayedCity.stationName}
+                prediction={prediction}
+                loading={predictionLoading}
+                error={predictionError}
+                onRefresh={refreshPrediction}
+              />
               <WeeklyForecast forecast={weeklyForecast} />
             </section>
           </div>
 
-          <AIAssistant sassy={assistantSass} onAssistantClick={registerAssistantClick} />
+          <AIAssistant sassy={assistantSass} prediction={prediction} onAssistantClick={registerAssistantClick} />
         </motion.div>
       )}
 
