@@ -1,19 +1,30 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Satellite, Wind } from "lucide-react";
 import { useBootSequence } from "@/hooks/useBootSequence";
 import { BOOT_SEQUENCE_STEPS, EASE } from "@/constants/animation";
 import { cn } from "@/lib/utils";
 
+const LOADER_BACKGROUND_IMAGE =
+  "linear-gradient(rgba(1, 3, 10, 0.48), rgba(1, 3, 10, 0.76)), url('https://cdn.pixabay.com/photo/2022/11/06/09/52/ai-generated-7573588_1280.jpg')";
+
 export function BootScreen({ onComplete }) {
   const { phase, stepIndex, progress, skip } = useBootSequence({ onComplete });
   const [exiting, setExiting] = useState(false);
-  const stars = useMemo(
-    () => Array.from({ length: 46 }).map((_, id) => ({ id, left: Math.random() * 100, top: Math.random() * 100, delay: Math.random() * 2.8 })),
-    []
-  );
+  const [stars, setStars] = useState([]);
+
+  useEffect(() => {
+    setStars(
+      Array.from({ length: 46 }).map((_, id) => ({
+        id,
+        left: Math.random() * 100,
+        top: Math.random() * 100,
+        delay: Math.random() * 2.8,
+      }))
+    );
+  }, []);
 
   useEffect(() => {
     if (phase === "complete") {
@@ -27,7 +38,8 @@ export function BootScreen({ onComplete }) {
     <AnimatePresence>
       {!exiting && (
         <motion.div
-          className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black"
+          className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-black bg-cover bg-center"
+          style={{ backgroundImage: LOADER_BACKGROUND_IMAGE }}
           exit={{
             scale: 12,
             opacity: 0,
