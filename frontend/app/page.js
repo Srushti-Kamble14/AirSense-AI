@@ -246,12 +246,14 @@ export default function Home() {
   }, []);
 
   const handlePrediction = useCallback((data) => {
+     if (prediction) return;
+
     setPrediction(data);
     setPredictionError(null);
   }, []);
 
   const handlePredictionError = useCallback((message) => {
-    const text = message === "Station not found" ? "Station not found" : message || "Unable to fetch prediction.";
+    const text = message === "Station not found" ? "Station not found" : message || "ReScanning...";
     setPredictionError(text);
     setToast(text);
   }, []);
@@ -524,7 +526,8 @@ export default function Home() {
                 stationName={displayedCity.stationName}
                 prediction={prediction}
                 loading={predictionLoading}
-                error={predictionError}
+               error={prediction ? null : predictionError}
+
                 onRefresh={refreshPrediction}
               />
               <WeeklyForecast forecast={weeklyForecast} />

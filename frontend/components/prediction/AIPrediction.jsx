@@ -96,7 +96,7 @@ export function AIPrediction({ cityName, stationName, prediction, loading, error
             </motion.p>
           )}
 
-          {!loading && error && (
+          {!loading && error && !prediction && (
             <motion.div key="error" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} className="mt-4 rounded-md border border-red-400/30 bg-red-500/10 p-4 text-sm text-red-100">
               {error}
             </motion.div>
