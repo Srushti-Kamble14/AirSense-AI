@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     OPENAQ_API_KEY: str = ""
     OPENWEATHER_API_KEY: str = ""
     SECRET_KEY: str = ""
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000" , "https://air-sense-ai.vercel.app"]
 
     model_config = SettingsConfigDict(
         env_file=".env",
