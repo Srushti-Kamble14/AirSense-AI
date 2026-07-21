@@ -41,13 +41,7 @@ def _station_match_score(query: str, station_name: str) -> float:
     query_norm = _normalize_station_text(query)
     station_norm = _normalize_station_text(station_name)
 
-<<<<<<< Updated upstream
-    if not query_normalized or (
-        query_normalized not in station_normalized and query_compact not in station_compact
-    ):
-=======
     if not query_norm or not station_norm:
->>>>>>> Stashed changes
         return 0.0
 
     # Token overlap check (e.g. "Civil" and "Lines")
@@ -63,11 +57,6 @@ def _station_match_score(query: str, station_name: str) -> float:
     return SequenceMatcher(None, _compact_station_text(query), _compact_station_text(station_name)).ratio()
 
 
-<<<<<<< Updated upstream
-def _find_station(locations: list[dict], station: str) -> dict | None:
-    matches = [(location, _station_match_score(station, _station_name(location))) for location in locations]
-    matches = [(location, score) for location, score in matches if score > 0]
-=======
 def _find_station(locations: list[dict], station_query: str, city: str) -> dict | None:
     cleaned_query = _clean_station_query(station_query, city)
     target_query = cleaned_query if cleaned_query else station_query
@@ -79,7 +68,6 @@ def _find_station(locations: list[dict], station_query: str, city: str) -> dict 
         if score > 0.2:  # Relaxed threshold for sub-locations
             matches.append((loc, score))
 
->>>>>>> Stashed changes
     if not matches:
         return None
 
@@ -222,17 +210,8 @@ async def _predict_place(place: str, lat: float | None, lon: float | None, displ
 
 @router.get("")
 async def predict_city_aqi(
-<<<<<<< Updated upstream
-    city: str | None = Query(None, description="City name, e.g. Delhi"),
-    station: str | None = Query(None, description="Optional station name, e.g. Rohini"),
-    place: str | None = Query(None, description="Any city, locality, landmark, road, or institution"),
-    lat: float | None = Query(None),
-    lon: float | None = Query(None),
-    display_name: str | None = Query(None),
-=======
     city: str = Query(..., description="City name, e.g. Delhi"),
     station: str | None = Query(None, description="Optional station name, e.g. Civil Lines"),
->>>>>>> Stashed changes
 ):
     try:
         if place:
