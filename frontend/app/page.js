@@ -235,6 +235,51 @@ export default function Home() {
     registerAssistantClick,
   } = useEasterEggs();
 
+  const activeCityName = activeLocation.city;
+  const cityStations = stationCache[activeCityName] ?? [];
+  const stationsLoaded = Boolean(stationCache[activeCityName]);
+
+  const handleLoading = useCallback((loading) => {
+    setPredictionLoading(loading);
+  }, []);
+
+  const handlePrediction = useCallback((data) => {
+    setPrediction(data);
+    setPredictionError(null);
+  }, []);
+
+  const handlePredictionError = useCallback((message) => {
+    const text = message === "Station not found" ? "Station not found" : message || "Unable to fetch prediction.";
+    setPredictionError(text);
+    setToast(text);
+  }, []);
+
+  useEffect(() => {
+    const city = activeCityName;
+    if (!city || stationsLoaded) return undefined;
+
+    const controller = new AbortController();
+    setLoadingStations(true);
+
+    fetch(`${API_BASE_URL}/locations?city=${encodeURIComponent(city)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => []);
+        if (!response.ok) throw new Error(payload.detail || "Unable to fetch stations.");
+        return payload;
+      })
+      .then((stations) => {
+        setStationCache((cache) => ({ ...cache, [city]: stations }));
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") setToast("Unable to fetch stations.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingStations(false);
+      });
+
+    return () => controller.abort();
+  }, [activeCityName, stationsLoaded]);
+
   const displayedCity = useMemo(() => {
     const weather = prediction?.weather ?? {};
     const predictedAqi = prediction?.prediction?.predicted_aqi;
@@ -318,9 +363,9 @@ export default function Home() {
       <PredictionUpdater
         apiBaseUrl={API_BASE_URL}
         location={activeLocation}
-        onLoading={setPredictionLoading}
-        onPrediction={setPrediction}
-        onError={onPredictionError}
+        onLoading={handleLoading}
+        onPrediction={handlePrediction}
+        onError={handlePredictionError}
       />
 
       {!booted && <BootScreen onComplete={() => setBooted(true)} />}
@@ -492,5 +537,3 @@ export default function Home() {
     </main>
   );
 }
-
-

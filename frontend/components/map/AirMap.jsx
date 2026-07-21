@@ -67,42 +67,36 @@ function SearchedMarker({ location }) {
   return (
     <Marker position={[location.latitude, location.longitude]} icon={icon}>
       <Popup>
-        <div className="min-w-52 font-sans text-sm text-slate-900">
-          <p className="font-semibold">Searched location</p>
-          <p className="mt-1 text-xs leading-relaxed text-slate-700">{location.display_name || location.name}</p>
-        </div>
-      </Popup>
-    </Marker>
-  );
-}
-
-export function AQIMarker({ station, prediction }) {
-  const predictedAqi = prediction?.prediction?.predicted_aqi ?? 0;
-  const level = getAqiLevel(predictedAqi);
-  const icon = useMemo(() => makeDivIcon("#22c55e"), []);
-
-  if (!hasCoords(station)) return null;
-
-  const weather = prediction?.weather ?? {};
-  const category = prediction?.prediction?.category ?? level.label;
-  const healthAdvisory = prediction?.health_advisory ?? "Prediction not loaded yet.";
-
-  return (
-    <Marker position={[station.latitude, station.longitude]} icon={icon}>
-      <Popup>
-        <div className="min-w-52 font-sans text-sm text-slate-900">
-          <p className="font-semibold">Nearest station: {station.name}</p>
-          <div className="mt-2 grid gap-1">
-            <p>Distance: {station.distance_km ?? "--"} km</p>
-            <p>Provider: {station.provider || "OpenAQ"}</p>
-            <p>Predicted AQI: {formatNumber(predictedAqi)}</p>
-            <p>Category: <span style={{ color: level.color }}>{category}</span></p>
-            <p>Temperature: {formatNumber(weather.temperature, " C")}</p>
-            <p>Humidity: {formatNumber(weather.humidity, "%")}</p>
-            <p>Wind: {formatNumber(weather.wind_speed, " km/h")}</p>
+        <div className="min-w-56 font-sans text-sm text-white">
+          <p className="font-semibold text-base text-white border-b border-white/10 pb-1.5 mb-2">
+            Location: <span className="text-cyan-200">{label}</span>
+          </p>
+          <div className="grid gap-1.5 text-xs text-white/90">
+            <div className="flex justify-between">
+              <span className="text-white/60">Predicted AQI:</span>
+              <span className="font-semibold text-white">{formatNumber(predictedAqi)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/60">Category:</span>
+              <span className="font-bold" style={{ color: level.color }}>{category}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/60">Temperature:</span>
+              <span className="text-white">{formatNumber(weather.temperature, "°C")}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/60">Humidity:</span>
+              <span className="text-white">{formatNumber(weather.humidity, "%")}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-white/60">Wind:</span>
+              <span className="text-white">{formatNumber(weather.wind_speed, " km/h")}</span>
+            </div>
           </div>
-          <p className="mt-3 font-semibold">Health Advisory</p>
-          <p className="mt-1 text-xs leading-relaxed text-slate-700">{healthAdvisory}</p>
+          <div className="mt-3 pt-2 border-t border-white/10">
+            <p className="font-semibold text-xs text-white/80">Health Advisory</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-white/70">{healthAdvisory}</p>
+          </div>
         </div>
       </Popup>
     </Marker>

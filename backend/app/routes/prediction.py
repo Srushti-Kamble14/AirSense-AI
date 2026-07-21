@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from difflib import SequenceMatcher
 import logging
 import re
+from difflib import SequenceMatcher
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -12,13 +12,20 @@ from app.services import openaq_service, prediction_service, weather_service
 from app.services.exceptions import ExternalAPIError
 from app.services.prediction_service import PredictionServiceError
 
-
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/prediction", tags=["Prediction"])
 
 
 def _station_name(location: dict) -> str:
-    return location.get("station_name") or ""
+    return location.get("station_name") or location.get("name") or ""
+
+
+def _clean_station_query(station_query: str, city: str) -> str:
+    """Removes the city suffix if passed in station name (e.g., 'Civil Lines, Delhi' -> 'Civil Lines')."""
+    station_query = re.sub(
+        rf"\b{re.escape(city)}\b", "", station_query, flags=re.IGNORECASE
+    )
+    return station_query.strip(" ,-")
 
 
 def _normalize_station_text(value: str) -> str:
@@ -31,31 +38,52 @@ def _compact_station_text(value: str) -> str:
 
 
 def _station_match_score(query: str, station_name: str) -> float:
-    query_normalized = _normalize_station_text(query)
-    station_normalized = _normalize_station_text(station_name)
-    query_compact = _compact_station_text(query)
-    station_compact = _compact_station_text(station_name)
+    query_norm = _normalize_station_text(query)
+    station_norm = _normalize_station_text(station_name)
 
+<<<<<<< Updated upstream
     if not query_normalized or (
         query_normalized not in station_normalized and query_compact not in station_compact
     ):
+=======
+    if not query_norm or not station_norm:
+>>>>>>> Stashed changes
         return 0.0
 
-    full_score = SequenceMatcher(None, query_normalized, station_normalized).ratio()
-    compact_score = SequenceMatcher(None, query_compact, station_compact).ratio()
-    token_scores = [
-        SequenceMatcher(None, query_normalized, token).ratio()
-        for token in station_normalized.split()
-    ]
-    return max([full_score, compact_score, *token_scores])
+    # Token overlap check (e.g. "Civil" and "Lines")
+    query_tokens = set(query_norm.split())
+    station_tokens = set(station_norm.split())
+    overlap = len(query_tokens & station_tokens)
+
+    if overlap > 0:
+        token_ratio = overlap / max(len(query_tokens), 1)
+        seq_ratio = SequenceMatcher(None, query_norm, station_norm).ratio()
+        return max(token_ratio, seq_ratio)
+
+    return SequenceMatcher(None, _compact_station_text(query), _compact_station_text(station_name)).ratio()
 
 
+<<<<<<< Updated upstream
 def _find_station(locations: list[dict], station: str) -> dict | None:
     matches = [(location, _station_match_score(station, _station_name(location))) for location in locations]
     matches = [(location, score) for location, score in matches if score > 0]
+=======
+def _find_station(locations: list[dict], station_query: str, city: str) -> dict | None:
+    cleaned_query = _clean_station_query(station_query, city)
+    target_query = cleaned_query if cleaned_query else station_query
+
+    matches = []
+    for loc in locations:
+        st_name = _station_name(loc)
+        score = _station_match_score(target_query, st_name)
+        if score > 0.2:  # Relaxed threshold for sub-locations
+            matches.append((loc, score))
+
+>>>>>>> Stashed changes
     if not matches:
         return None
 
+    # Return location with highest fuzzy score
     return max(matches, key=lambda item: item[1])[0]
 
 
@@ -85,9 +113,9 @@ def _confidence(distance_km: float | None) -> dict:
 
 
 async def _get_station_air_quality(location: dict) -> dict:
-    station_id = location.get("station_id")
+    station_id = location.get("station_id") or location.get("id")
     if station_id is None:
-        raise HTTPException(status_code=404, detail="Station not found")
+        raise HTTPException(status_code=404, detail="Station ID missing")
 
     merged = await openaq_service.get_merged_station_data(station_id)
     merged["latitude"] = location.get("latitude")
@@ -100,18 +128,16 @@ async def _get_city_air_quality(city: str) -> dict:
     last_error: ExternalAPIError | None = None
 
     for location in locations:
-        station_id = location.get("station_id")
+        station_id = location.get("station_id") or location.get("id")
         if station_id is None:
             continue
 
         try:
-            merged = await _get_station_air_quality(location)
+            return await _get_station_air_quality(location)
         except ExternalAPIError as exc:
             last_error = exc
             logger.warning("Skipping OpenAQ station %s: %s", station_id, exc.message)
             continue
-
-        return merged
 
     if last_error:
         raise last_error
@@ -123,11 +149,18 @@ async def _get_requested_air_quality(city: str, station: str | None) -> dict:
         return await _get_city_air_quality(city)
 
     locations = await openaq_service.get_locations_by_city(city)
-    selected_location = _find_station(locations, station)
-    if selected_location is None:
-        raise HTTPException(status_code=404, detail="Station not found")
+    selected_location = _find_station(locations, station, city)
 
-    return await _get_station_air_quality(selected_location)
+    # Fallback to city-wide station if specific station isn't matched
+    if selected_location is None:
+        logger.info("Station '%s' not found in %s, falling back to city average.", station, city)
+        return await _get_city_air_quality(city)
+
+    try:
+        return await _get_station_air_quality(selected_location)
+    except Exception:
+        # Fallback to city if specific station data fetch fails
+        return await _get_city_air_quality(city)
 
 
 def _searched_location(place: dict) -> dict:
@@ -189,12 +222,17 @@ async def _predict_place(place: str, lat: float | None, lon: float | None, displ
 
 @router.get("")
 async def predict_city_aqi(
+<<<<<<< Updated upstream
     city: str | None = Query(None, description="City name, e.g. Delhi"),
     station: str | None = Query(None, description="Optional station name, e.g. Rohini"),
     place: str | None = Query(None, description="Any city, locality, landmark, road, or institution"),
     lat: float | None = Query(None),
     lon: float | None = Query(None),
     display_name: str | None = Query(None),
+=======
+    city: str = Query(..., description="City name, e.g. Delhi"),
+    station: str | None = Query(None, description="Optional station name, e.g. Civil Lines"),
+>>>>>>> Stashed changes
 ):
     try:
         if place:
@@ -213,7 +251,7 @@ async def predict_city_aqi(
 
     return {
         "city": city,
-        "station": air_quality.get("station"),
+        "station": air_quality.get("station") or station or city,
         "weather": weather,
         "air_quality": air_quality,
         "prediction": {
