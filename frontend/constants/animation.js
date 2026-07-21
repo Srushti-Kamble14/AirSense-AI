@@ -16,12 +16,12 @@ export const DURATION = {
 
 export const BOOT_SEQUENCE_STEPS = [
   { id: "sensors", label: "Checking Atmospheric Sensors...", delay: 400 },
-  { id: "satellites", label: "Checking Weather Satellites...", delay: 550 },
-  { id: "ai-core", label: "Checking AI Core...", delay: 500 },
+  { id: "satellites", label: "Synchronizing Weather Satellites...", delay: 550 },
+  { id: "ai-core", label: "Loading AI Engine...", delay: 500 },
   { id: "pollution-network", label: "Connecting Pollution Network...", delay: 500 },
-  { id: "env-models", label: "Synchronizing Environmental Models...", delay: 600 },
-  { id: "live-data", label: "Downloading Live Atmospheric Data...", delay: 900, isProgress: true },
-  { id: "twin", label: "Digital Twin Initialized", delay: 500 },
+  { id: "env-models", label: "Building Planetary Weather Model...", delay: 600 },
+  { id: "live-data", label: "Building Digital Twin...", delay: 900, isProgress: true },
+  { id: "ready", label: "Mission Control Ready.", delay: 500 },
 ];
 
 export const STAGGER = {
