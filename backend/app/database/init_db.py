@@ -26,7 +26,7 @@ def init_db(engine: Engine) -> None:
     logger.info("Database Connected: %s", database_name)
 
     discovered_tables = list(Base.metadata.tables.keys())
-    print(Base.metadata.tables.keys())
+   
     logger.info("Models discovered: %s", ", ".join(discovered_tables) or "none")
 
     if not discovered_tables:
