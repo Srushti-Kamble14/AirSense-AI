@@ -1,4 +1,4 @@
-"""Public location routes for frontend station discovery."""
+﻿"""Public location routes for frontend station and place discovery."""
 
 from __future__ import annotations
 
@@ -56,6 +56,17 @@ def _serialize_station(location: dict, city: str) -> dict:
         "longitude": location.get("longitude"),
         "provider": _provider_name(location),
     }
+
+
+@router.get("/search")
+async def search_locations(
+    q: str = Query(..., min_length=2, description="City, locality, landmark, road, or institution"),
+    limit: int = Query(6, ge=1, le=8),
+):
+    try:
+        return await openaq_service.geocode_place(q, limit=limit)
+    except ExternalAPIError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message)
 
 
 @router.get("")

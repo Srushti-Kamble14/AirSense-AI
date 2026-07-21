@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { History, Loader2, MapPin, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -14,54 +14,27 @@ function coordinatePart(value) {
   return value === null || value === undefined ? "" : Number(value).toFixed(6);
 }
 
-function stationIdentity(station) {
-  if (station.station_id !== null && station.station_id !== undefined) {
-    return `station-${station.station_id}`;
-  }
-
-  return [
-    "station",
-    normalize(station.station),
-    normalize(station.city),
-    coordinatePart(station.latitude),
-    coordinatePart(station.longitude),
-  ].join("-");
+function placeIdentity(place) {
+  return ["place", normalize(place.display_name || place.name), coordinatePart(place.latitude), coordinatePart(place.longitude)].join("-");
 }
 
-function citySuggestion(query) {
-  const city = query.trim();
-  if (!city) return null;
+function placeSuggestion(place) {
+  const label = place.name || place.display_name || "Selected location";
+  const sublabel = [place.city, place.state, place.country].filter(Boolean).join(", ") || place.display_name;
+
   return {
-    id: `city-${normalize(city)}`,
-    type: "city",
-    label: city,
-    city,
+    id: placeIdentity(place),
+    type: "place",
+    label,
+    sublabel,
+    city: place.city || label,
+    latitude: place.latitude,
+    longitude: place.longitude,
+    displayName: place.display_name || label,
+    state: place.state,
+    country: place.country,
+    payload: place,
   };
-}
-
-function stationSuggestion(station) {
-  return {
-    id: stationIdentity(station),
-    type: "station",
-    label: station.station,
-    sublabel: station.city,
-    city: station.city,
-    station: station.station,
-    stationId: station.station_id,
-    latitude: station.latitude,
-    longitude: station.longitude,
-    provider: station.provider,
-    payload: station,
-  };
-}
-
-function matchesQuery(suggestion, query) {
-  const q = normalize(query);
-  if (!q) return false;
-
-  return [suggestion.label, suggestion.sublabel, suggestion.city, suggestion.station, suggestion.provider].some((value) =>
-    normalize(value).includes(q)
-  );
 }
 
 function dedupeById(items) {
@@ -82,13 +55,11 @@ export function SearchBar({ query, onChange, onFocus, onKeyDown, loading }) {
         onChange={(event) => onChange(event.target.value)}
         onFocus={onFocus}
         onKeyDown={onKeyDown}
-        placeholder="Search city, then station..."
+        placeholder="Search any city, locality or landmark..."
         className="pl-9 pr-9"
         autoComplete="off"
       />
-      {loading && (
-        <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-aurora-cyan" />
-      )}
+      {loading && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-aurora-cyan" />}
     </div>
   );
 }
@@ -118,12 +89,8 @@ export function SearchSuggestions({ suggestions, activeIndex, onHover, onSelect 
         >
           <MapPin className="h-4 w-4 shrink-0 text-aurora-cyan" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm text-foreground">
-              {item.type === "station" ? `${item.label}, ${item.city}` : item.label}
-            </span>
-            <span className="block truncate text-[11px] text-muted-foreground">
-              {item.type === "station" ? item.provider || item.city : "City"}
-            </span>
+            <span className="block truncate text-sm text-foreground">{item.label}</span>
+            <span className="block truncate text-[11px] text-muted-foreground">{item.sublabel || "Place"}</span>
           </span>
         </motion.button>
       ))}
@@ -154,8 +121,9 @@ export function SearchHistory({ items, onSelect }) {
           className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.06]"
         >
           <MapPin className="h-4 w-4 shrink-0 text-aurora-cyan" />
-          <span className="truncate text-sm text-foreground">
-            {item.type === "station" ? `${item.label}, ${item.city}` : item.label}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm text-foreground">{item.label}</span>
+            <span className="block truncate text-[11px] text-muted-foreground">{item.sublabel || item.displayName}</span>
           </span>
         </button>
       ))}
@@ -163,29 +131,65 @@ export function SearchHistory({ items, onSelect }) {
   );
 }
 
-export function SuperSearch({ stations = [], loadingStations = false, recentSearches = [], onSelectLocation, className }) {
+export function SuperSearch({ apiBaseUrl, recentSearches = [], onSelectLocation, onError, className }) {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const cacheRef = useRef(new Map());
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 300);
     return () => clearTimeout(timer);
   }, [query]);
 
-  const suggestions = useMemo(() => {
-    const cityItem = citySuggestion(debouncedQuery);
-    const stationItems = stations.map(stationSuggestion).filter((item) => matchesQuery(item, debouncedQuery));
-    return dedupeById([cityItem, ...stationItems]).slice(0, 6);
-  }, [debouncedQuery, stations]);
-
   useEffect(() => {
+    const search = debouncedQuery.trim();
     setActiveIndex(0);
-  }, [debouncedQuery]);
+
+    if (search.length < 2) {
+      setSuggestions([]);
+      setLoading(false);
+      return undefined;
+    }
+
+    const cacheKey = normalize(search);
+    if (cacheRef.current.has(cacheKey)) {
+      setSuggestions(cacheRef.current.get(cacheKey));
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    setLoading(true);
+
+    fetch(`${apiBaseUrl}/locations/search?q=${encodeURIComponent(search)}&limit=6`, { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => []);
+        if (!response.ok) throw new Error(payload.detail || "Unable to search locations.");
+        return payload;
+      })
+      .then((places) => {
+        const next = dedupeById(places.map(placeSuggestion));
+        cacheRef.current.set(cacheKey, next);
+        setSuggestions(next);
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          setSuggestions([]);
+          onError?.(error.message || "Unable to search locations.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [apiBaseUrl, debouncedQuery, onError]);
 
   const selectItem = (item) => {
-    setQuery(item.type === "station" ? `${item.label}, ${item.city}` : item.label);
+    setQuery(item.label);
     setFocused(false);
     onSelectLocation?.(item);
   };
@@ -227,18 +231,11 @@ export function SuperSearch({ stations = [], loadingStations = false, recentSear
         }}
         onFocus={() => setFocused(true)}
         onKeyDown={onKeyDown}
-        loading={loadingStations}
+        loading={loading}
       />
 
       <AnimatePresence>
-        {showSuggestions && (
-          <SearchSuggestions
-            suggestions={suggestions}
-            activeIndex={activeIndex}
-            onHover={setActiveIndex}
-            onSelect={selectItem}
-          />
-        )}
+        {showSuggestions && <SearchSuggestions suggestions={suggestions} activeIndex={activeIndex} onHover={setActiveIndex} onSelect={selectItem} />}
         {showHistory && <SearchHistory items={recentSearches} onSelect={selectItem} />}
       </AnimatePresence>
     </div>

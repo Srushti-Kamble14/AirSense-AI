@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -75,11 +75,12 @@ function addRecentSearch(items, item) {
     type: item.type,
     label: item.label,
     city: item.city,
-    station: item.station,
-    stationId: item.stationId,
+    sublabel: item.sublabel,
+    displayName: item.displayName,
     latitude: item.latitude,
     longitude: item.longitude,
-    provider: item.provider,
+    state: item.state,
+    country: item.country,
     payload: item.payload,
   };
   return [compact, ...items.filter((existing) => existing.id !== compact.id)].slice(0, 5);
@@ -213,8 +214,6 @@ export default function Home() {
   const [booted, setBooted] = useState(false);
   const [activeCity, setActiveCity] = useState(initialCity);
   const [activeLocation, setActiveLocation] = useState(() => cityLocation(initialCity));
-  const [stationCache, setStationCache] = useState({});
-  const [loadingStations, setLoadingStations] = useState(false);
   const [prediction, setPrediction] = useState(null);
   const [predictionLoading, setPredictionLoading] = useState(false);
   const [predictionError, setPredictionError] = useState(null);
@@ -236,46 +235,21 @@ export default function Home() {
     registerAssistantClick,
   } = useEasterEggs();
 
-  const activeCityName = activeLocation.city;
-  const cityStations = stationCache[activeCityName] ?? [];
-  const stationsLoaded = Boolean(stationCache[activeCityName]);
-
-  useEffect(() => {
-    const city = activeCityName;
-    if (!city || stationsLoaded) return undefined;
-
-    const controller = new AbortController();
-    setLoadingStations(true);
-
-    fetch(`${API_BASE_URL}/locations?city=${encodeURIComponent(city)}`, { signal: controller.signal })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => []);
-        if (!response.ok) throw new Error(payload.detail || "Unable to fetch stations.");
-        return payload;
-      })
-      .then((stations) => {
-        setStationCache((cache) => ({ ...cache, [city]: stations }));
-      })
-      .catch((error) => {
-        if (error.name !== "AbortError") setToast("Unable to fetch stations.");
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setLoadingStations(false);
-      });
-
-    return () => controller.abort();
-  }, [activeCityName, stationsLoaded]);
-
   const displayedCity = useMemo(() => {
     const weather = prediction?.weather ?? {};
     const predictedAqi = prediction?.prediction?.predicted_aqi;
+    const searched = prediction?.searched_location;
+    const nearest = prediction?.nearest_station;
+    const name = searched?.name || activeLocation.label || activeLocation.city || activeCity.name;
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || activeCity.id;
+
     return {
       ...activeCity,
-      id: activeCity.id ?? activeLocation.city.toLowerCase(),
-      name: activeLocation.city,
-      stationName: activeLocation.type === "station" ? activeLocation.station : null,
-      lat: activeLocation.latitude ?? activeCity.lat,
-      lng: activeLocation.longitude ?? activeCity.lng,
+      id,
+      name,
+      stationName: nearest?.name ?? null,
+      lat: searched?.latitude ?? activeLocation.latitude ?? activeCity.lat,
+      lng: searched?.longitude ?? activeLocation.longitude ?? activeCity.lng,
       aqi: predictedAqi ?? activeLocation.aqi ?? activeCity.aqi,
       temp: weather.temperature !== undefined ? Math.round(weather.temperature) : activeCity.temp,
       humidity: weather.humidity ?? activeCity.humidity,
@@ -299,37 +273,32 @@ export default function Home() {
   }, [displayedCity.aqi]);
 
   const onPredictionError = useCallback((message) => {
-    const text = message === "Station not found" ? "Station not found" : "Unable to fetch prediction.";
+    const text = message || "Unable to fetch prediction.";
     setPredictionError(text);
     setToast(text);
   }, []);
 
   const selectLocation = useCallback((item) => {
-    if (item.type === "city") {
-      const city = item.payload;
-      setActiveCity(city);
-      setActiveLocation(cityLocation(city));
-      setLastScannedCity(city);
-    } else {
-      const city = MOCK_CITIES.find((candidate) => candidate.name.toLowerCase() === item.city.toLowerCase()) ?? activeCity;
-      const stationLocation = {
-        id: item.id,
-        type: "station",
-        label: item.label,
-        city: item.city,
-        station: item.station,
-        stationId: item.stationId,
-        latitude: item.latitude ?? city.lat,
-        longitude: item.longitude ?? city.lng,
-      };
-      setActiveCity(city);
-      setActiveLocation(stationLocation);
-      setLastScannedCity({ ...city, name: item.city, stationName: item.station });
-    }
+    const city = MOCK_CITIES.find((candidate) => item.city && candidate.name.toLowerCase() === item.city.toLowerCase()) ?? activeCity;
+    const placeLocation = {
+      id: item.id,
+      type: "place",
+      label: item.label,
+      city: item.city || item.label,
+      latitude: item.latitude ?? city.lat,
+      longitude: item.longitude ?? city.lng,
+      displayName: item.displayName || item.sublabel || item.label,
+      state: item.state,
+      country: item.country,
+      payload: item.payload,
+    };
 
+    setActiveCity(city);
+    setActiveLocation(placeLocation);
+    setLastScannedCity({ ...city, name: item.label, stationName: null });
     setPrediction(null);
     setPredictionError(null);
-    setRecentSearches((items) => addRecentSearch(items, item));
+    setRecentSearches((items) => addRecentSearch(items, placeLocation));
   }, [activeCity]);
 
   const refreshPrediction = useCallback(() => {
@@ -423,9 +392,7 @@ export default function Home() {
               </motion.button>
 
               <SuperSearch
-                cities={MOCK_CITIES}
-                stations={cityStations}
-                loadingStations={loadingStations}
+                apiBaseUrl={API_BASE_URL}
                 recentSearches={recentSearches}
                 onSelectLocation={selectLocation}
                 className="order-3 w-full md:order-2 md:w-[380px]"
@@ -517,7 +484,7 @@ export default function Home() {
             </section>
           </div>
 
-          <AIAssistant sassy={assistantSass} onAssistantClick={registerAssistantClick} />
+          <AIAssistant sassy={assistantSass} prediction={prediction} onAssistantClick={registerAssistantClick} />
         </motion.div>
       )}
 
@@ -525,3 +492,5 @@ export default function Home() {
     </main>
   );
 }
+
+
