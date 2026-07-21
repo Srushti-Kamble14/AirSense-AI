@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -217,6 +217,8 @@ export default function Home() {
   const [prediction, setPrediction] = useState(null);
   const [predictionLoading, setPredictionLoading] = useState(false);
   const [predictionError, setPredictionError] = useState(null);
+  const [stationCache, setStationCache] = useState({});
+  const [, setLoadingStations] = useState(false);
   const [toast, setToast] = useState(null);
   const [recentSearches, setRecentSearches] = useState([]);
   const [lastScannedCity, setLastScannedCity] = useState(null);

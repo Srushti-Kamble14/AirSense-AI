@@ -5,8 +5,9 @@ Uses the free-tier endpoints:
     /data/2.5/weather   -> current weather
     /data/2.5/forecast  -> 5 day / 3-hour interval forecast
 
-Nothing is stored in the database here — pure fetch/process/return.
+Nothing is stored in the database here - pure fetch/process/return.
 """
+import asyncio
 from typing import Any
 
 import httpx
@@ -21,26 +22,58 @@ from app.services.exceptions import (
 
 settings = get_settings()
 
+UPSTREAM_RETRY_ATTEMPTS = 2
+UPSTREAM_RETRY_BACKOFF_SECONDS = 0.35
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
+def _http_timeout() -> httpx.Timeout:
+    total = min(float(settings.HTTP_TIMEOUT_SECONDS), 6.0)
+    return httpx.Timeout(total, connect=min(total, 2.5), read=total, write=3.0, pool=3.0)
+
+
+async def _get_with_retries(path: str, params: dict[str, Any]) -> httpx.Response:
+    url = f"{settings.OPENWEATHER_BASE_URL}{path}"
+    last_error: Exception | None = None
+
+    for attempt in range(UPSTREAM_RETRY_ATTEMPTS + 1):
+        try:
+            async with httpx.AsyncClient(timeout=_http_timeout()) as client:
+                resp = await client.get(url, params=params)
+
+            if resp.status_code not in RETRYABLE_STATUS_CODES or attempt == UPSTREAM_RETRY_ATTEMPTS:
+                return resp
+        except httpx.TimeoutException as exc:
+            last_error = exc
+            if attempt == UPSTREAM_RETRY_ATTEMPTS:
+                raise UpstreamTimeoutError("OpenWeatherMap") from exc
+        except httpx.RequestError as exc:
+            last_error = exc
+            if attempt == UPSTREAM_RETRY_ATTEMPTS:
+                raise UpstreamServiceError("OpenWeatherMap", str(exc)) from exc
+
+        await asyncio.sleep(UPSTREAM_RETRY_BACKOFF_SECONDS * (attempt + 1))
+
+    if isinstance(last_error, httpx.TimeoutException):
+        raise UpstreamTimeoutError("OpenWeatherMap")
+    if last_error:
+        raise UpstreamServiceError("OpenWeatherMap", str(last_error))
+    raise UpstreamServiceError("OpenWeatherMap", "retry attempts exhausted")
+
 
 async def _owm_get(path: str, params: dict[str, Any]) -> dict:
     if not settings.OPENWEATHER_API_KEY:
         raise InvalidAPIKeyError("OpenWeatherMap")
 
     params = {**params, "appid": settings.OPENWEATHER_API_KEY, "units": "metric"}
-    url = f"{settings.OPENWEATHER_BASE_URL}{path}"
-
-    try:
-        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT_SECONDS) as client:
-            resp = await client.get(url, params=params)
-    except httpx.TimeoutException:
-        raise UpstreamTimeoutError("OpenWeatherMap")
-    except httpx.RequestError as exc:
-        raise UpstreamServiceError("OpenWeatherMap", str(exc))
+    resp = await _get_with_retries(path, params)
 
     if resp.status_code == 401:
         raise InvalidAPIKeyError("OpenWeatherMap")
     if resp.status_code == 404:
         raise CityNotFoundError(params.get("q", "unknown"))
+    if resp.status_code in RETRYABLE_STATUS_CODES:
+        raise UpstreamTimeoutError("OpenWeatherMap")
     if resp.status_code >= 400:
         raise UpstreamServiceError("OpenWeatherMap", f"status {resp.status_code}: {resp.text[:200]}")
 

@@ -1,4 +1,4 @@
-﻿"""FastAPI application factory and ASGI entry point for AirSenseAI.
+"""FastAPI application factory and ASGI entry point for AirSenseAI.
 This module wires middleware, logging, settings, routing, and DB test plumbing.
 Business features will be added through routers and services in later phases.
 """
@@ -21,6 +21,16 @@ from app.services import prediction_service
 
 configure_logging()
 logger = logging.getLogger(__name__)
+
+
+def _cors_origins() -> list[str]:
+    origins = settings.CORS_ORIGINS
+    if isinstance(origins, str):
+        origins = [origin.strip() for origin in origins.split(",")]
+
+    normalized = {origin.rstrip("/") for origin in origins if origin}
+    normalized.update({"http://localhost:3000", "http://127.0.0.1:3000"})
+    return sorted(normalized)
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -68,7 +78,7 @@ def database_connection_test():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

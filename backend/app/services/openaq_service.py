@@ -1,10 +1,11 @@
-﻿"""
+"""
 OpenAQ integration service.
 
 OpenAQ v3 is queried by coordinates, so this module owns geocoding,
 station lookup, latest pollutant reads, and nearest-station distance logic.
 Nothing here touches the database or ML artifacts.
 """
+import asyncio
 from datetime import datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 from typing import Any
@@ -35,8 +36,44 @@ PARAMETER_KEY_MAP = {
 
 GEOCODE_CACHE_TTL = timedelta(minutes=30)
 STATION_CACHE_TTL = timedelta(minutes=10)
+UPSTREAM_RETRY_ATTEMPTS = 2
+UPSTREAM_RETRY_BACKOFF_SECONDS = 0.35
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 _geocode_cache: dict[str, tuple[datetime, Any]] = {}
 _station_cache: dict[str, tuple[datetime, Any]] = {}
+
+
+def _http_timeout() -> httpx.Timeout:
+    total = min(float(settings.HTTP_TIMEOUT_SECONDS), 6.0)
+    return httpx.Timeout(total, connect=min(total, 2.5), read=total, write=3.0, pool=3.0)
+
+
+async def _get_with_retries(service: str, url: str, *, params: dict[str, Any] | None = None, headers: dict[str, str] | None = None) -> httpx.Response:
+    last_error: Exception | None = None
+
+    for attempt in range(UPSTREAM_RETRY_ATTEMPTS + 1):
+        try:
+            async with httpx.AsyncClient(timeout=_http_timeout()) as client:
+                resp = await client.get(url, params=params, headers=headers)
+
+            if resp.status_code not in RETRYABLE_STATUS_CODES or attempt == UPSTREAM_RETRY_ATTEMPTS:
+                return resp
+        except httpx.TimeoutException as exc:
+            last_error = exc
+            if attempt == UPSTREAM_RETRY_ATTEMPTS:
+                raise UpstreamTimeoutError(service) from exc
+        except httpx.RequestError as exc:
+            last_error = exc
+            if attempt == UPSTREAM_RETRY_ATTEMPTS:
+                raise UpstreamServiceError(service, str(exc)) from exc
+
+        await asyncio.sleep(UPSTREAM_RETRY_BACKOFF_SECONDS * (attempt + 1))
+
+    if isinstance(last_error, httpx.TimeoutException):
+        raise UpstreamTimeoutError(service)
+    if last_error:
+        raise UpstreamServiceError(service, str(last_error))
+    raise UpstreamServiceError(service, "retry attempts exhausted")
 
 
 def _cache_get(cache: dict[str, tuple[datetime, Any]], key: str, ttl: timedelta) -> Any | None:
@@ -96,14 +133,7 @@ async def geocode_place(query: str, limit: int = 1) -> list[dict]:
 
     params = {"q": cleaned, "format": "json", "addressdetails": 1, "limit": limit}
     headers = {"User-Agent": settings.NOMINATIM_USER_AGENT}
-
-    try:
-        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT_SECONDS) as client:
-            resp = await client.get(f"{settings.NOMINATIM_BASE_URL}/search", params=params, headers=headers)
-    except httpx.TimeoutException:
-        raise UpstreamTimeoutError("Geocoding")
-    except httpx.RequestError as exc:
-        raise UpstreamServiceError("Geocoding", str(exc))
+    resp = await _get_with_retries("Geocoding", f"{settings.NOMINATIM_BASE_URL}/search", params=params, headers=headers)
 
     if resp.status_code != 200:
         raise UpstreamServiceError("Geocoding", f"status {resp.status_code}")
@@ -132,19 +162,14 @@ async def _openaq_get(path: str, params: dict[str, Any] | None = None) -> dict:
     """Shared helper for calling any OpenAQ v3 endpoint with consistent error handling."""
     headers = _build_headers()
     url = f"{settings.OPENAQ_BASE_URL}{path}"
-
-    try:
-        async with httpx.AsyncClient(timeout=settings.HTTP_TIMEOUT_SECONDS) as client:
-            resp = await client.get(url, params=params, headers=headers)
-    except httpx.TimeoutException:
-        raise UpstreamTimeoutError("OpenAQ")
-    except httpx.RequestError as exc:
-        raise UpstreamServiceError("OpenAQ", str(exc))
+    resp = await _get_with_retries("OpenAQ", url, params=params, headers=headers)
 
     if resp.status_code == 401:
         raise InvalidAPIKeyError("OpenAQ")
     if resp.status_code == 404:
         raise UpstreamServiceError("OpenAQ", "resource not found")
+    if resp.status_code in RETRYABLE_STATUS_CODES:
+        raise UpstreamTimeoutError("OpenAQ")
     if resp.status_code >= 400:
         raise UpstreamServiceError("OpenAQ", f"status {resp.status_code}: {resp.text[:200]}")
 

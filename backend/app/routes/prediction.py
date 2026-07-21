@@ -1,4 +1,4 @@
-﻿"""Prediction routes for live AQI inference."""
+"""Prediction routes for live AQI inference."""
 
 from __future__ import annotations
 
@@ -210,8 +210,12 @@ async def _predict_place(place: str, lat: float | None, lon: float | None, displ
 
 @router.get("")
 async def predict_city_aqi(
-    city: str = Query(..., description="City name, e.g. Delhi"),
+    city: str | None = Query(None, description="City name, e.g. Delhi"),
     station: str | None = Query(None, description="Optional station name, e.g. Civil Lines"),
+    place: str | None = Query(None, description="Free-text place from location search"),
+    lat: float | None = Query(None, description="Latitude for selected place"),
+    lon: float | None = Query(None, description="Longitude for selected place"),
+    display_name: str | None = Query(None, description="Display name for selected place"),
 ):
     try:
         if place:
