@@ -16,7 +16,7 @@ from app.config.settings import settings
 from app.database.database import get_engine
 from app.database.init_db import init_db
 from app.routes import api_router
-from app.routes import openaq, prediction, weather
+from app.routes import locations, openaq, prediction, weather
 from app.services import prediction_service
 
 configure_logging()
@@ -31,7 +31,11 @@ app = FastAPI(
 
 @app.on_event("startup")
 def on_startup() -> None:
-    init_db(get_engine())
+    try:
+        init_db(get_engine())
+    except (RuntimeError, SQLAlchemyError, ModuleNotFoundError):
+        logger.exception("Database initialization skipped.")
+
     prediction_service.load_model()
 
 
@@ -71,6 +75,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+app.include_router(locations.router)
 app.include_router(openaq.router)
 app.include_router(weather.router)
 app.include_router(prediction.router)

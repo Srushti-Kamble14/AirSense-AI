@@ -28,18 +28,24 @@ export function PollutantBars({ data, title = "Pollutant Breakdown" }) {
         <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent className="h-64 pt-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-            <XAxis dataKey="label" stroke="rgba(255,255,255,0.35)" fontSize={11} tickLine={false} axisLine={false} />
-            <YAxis stroke="rgba(255,255,255,0.35)" fontSize={11} tickLine={false} axisLine={false} width={32} />
-            <Tooltip content={<BarTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-            <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-              {data.map((entry, i) => (
-                <Cell key={entry.key} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        {data.length === 0 ? (
+          <div className="flex h-full items-center justify-center rounded-md border border-white/10 bg-white/5 px-4 text-center text-xs text-muted-foreground">
+            No pollutant values returned by backend.
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+              <XAxis dataKey="label" stroke="rgba(255,255,255,0.35)" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke="rgba(255,255,255,0.35)" fontSize={11} tickLine={false} axisLine={false} width={32} />
+              <Tooltip content={<BarTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                {data.map((entry, i) => (
+                  <Cell key={entry.key} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );

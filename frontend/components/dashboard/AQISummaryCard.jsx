@@ -17,9 +17,9 @@ import { WEATHER_META } from "@/constants/weather";
  */
 export function AQISummaryCard({ city }) {
   const [open, setOpen] = useState(false);
-  const level = getAqiLevel(city.aqi);
-  const hourly = getHourlyAqiSeries(city.id, city.aqi);
-  const pollutants = getPollutantBreakdown(city.id, city.aqi);
+  const level = getAqiLevel(city.aqi ?? 0);
+  const hourly = getHourlyAqiSeries(city.id ?? city.name?.toLowerCase() ?? "live", city.aqi ?? 0);
+  const pollutants = getPollutantBreakdown(city.id ?? city.name?.toLowerCase() ?? "live", city.aqi ?? 0);
   const weatherLabel = WEATHER_META[city.weather]?.label ?? city.weather;
 
   return (
@@ -28,7 +28,7 @@ export function AQISummaryCard({ city }) {
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs uppercase tracking-widest text-muted-foreground">{city.country}</p>
-            <h2 className="font-display text-2xl font-semibold text-foreground">{city.name}</h2>
+            <h2 className="font-display text-2xl font-semibold text-foreground">{city.stationName ?? city.name}</h2>
           </div>
           <motion.div
             className="flex h-16 w-16 items-center justify-center rounded-full border-2"
@@ -42,30 +42,30 @@ export function AQISummaryCard({ city }) {
 
         <div className="mt-4 flex items-end gap-3">
           <span className="font-display text-5xl font-bold text-glow" style={{ color: level.color }}>
-            {city.aqi}
+            {Math.round(city.aqi ?? 0)}
           </span>
           <span className="mb-2 text-sm text-muted-foreground">{level.label}</span>
         </div>
 
         <div className="mt-6 grid grid-cols-3 gap-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
-            <Thermometer className="h-3.5 w-3.5" /> {city.temp}°C
+            <Thermometer className="h-3.5 w-3.5" /> {city.temp ?? "--"}C
           </div>
           <div className="flex items-center gap-1.5">
-            <Droplets className="h-3.5 w-3.5" /> {city.humidity}%
+            <Droplets className="h-3.5 w-3.5" /> {city.humidity ?? "--"}%
           </div>
           <div className="flex items-center gap-1.5">
-            <Wind className="h-3.5 w-3.5" /> {city.windSpeed} km/h
+            <Wind className="h-3.5 w-3.5" /> {city.windSpeed ?? "--"} km/h
           </div>
         </div>
-        <p className="mt-3 text-[11px] uppercase tracking-wider text-muted-foreground/70">{weatherLabel} · tap to expand</p>
+        <p className="mt-3 text-[11px] uppercase tracking-wider text-muted-foreground/70">{weatherLabel} - tap to expand</p>
       </GlassCard>
 
       <HologramModal
         open={open}
         onOpenChange={setOpen}
-        title={`${city.name} — Digital Twin`}
-        description={`Live atmospheric reconstruction · ${level.label}`}
+        title={`${city.stationName ?? city.name} - Digital Twin`}
+        description={`Live atmospheric reconstruction - ${level.label}`}
       >
         <div className="mt-4 grid gap-4">
           <AQIChart data={hourly} xKey="hour" title="24-Hour AQI Trend" color={level.color} />

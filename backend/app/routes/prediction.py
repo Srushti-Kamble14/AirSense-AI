@@ -1,9 +1,10 @@
-﻿"""Prediction routes for live AQI inference."""
+"""Prediction routes for live AQI inference."""
 
 from __future__ import annotations
 
 from difflib import SequenceMatcher
 import logging
+import re
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -20,19 +21,34 @@ def _station_name(location: dict) -> str:
     return location.get("station_name") or ""
 
 
-def _station_match_score(query: str, station_name: str) -> float:
-    query_normalized = query.casefold().strip()
-    station_normalized = station_name.casefold()
+def _normalize_station_text(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", " ", value.casefold()).strip()
+    return re.sub(r"\s+", " ", normalized)
 
-    if not query_normalized or query_normalized not in station_normalized:
+
+def _compact_station_text(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", value.casefold())
+
+
+def _station_match_score(query: str, station_name: str) -> float:
+    query_normalized = _normalize_station_text(query)
+    station_normalized = _normalize_station_text(station_name)
+    query_compact = _compact_station_text(query)
+    station_compact = _compact_station_text(station_name)
+
+    if not query_normalized or (
+        query_normalized not in station_normalized
+        and query_compact not in station_compact
+    ):
         return 0.0
 
     full_score = SequenceMatcher(None, query_normalized, station_normalized).ratio()
+    compact_score = SequenceMatcher(None, query_compact, station_compact).ratio()
     token_scores = [
         SequenceMatcher(None, query_normalized, token).ratio()
-        for token in station_normalized.replace("-", " ").replace(",", " ").split()
+        for token in station_normalized.split()
     ]
-    return max([full_score, *token_scores])
+    return max([full_score, compact_score, *token_scores])
 
 
 def _find_station(locations: list[dict], station: str) -> dict | None:
