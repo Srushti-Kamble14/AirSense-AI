@@ -30,7 +30,7 @@ import { getWeeklyForecast } from "@/data/mockAQI";
 import { getAqiLevel } from "@/constants/aqi";
 import { WEATHER_CONDITIONS } from "@/constants/weather";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8001";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
 
 const scanSteps = [
   "AI receiving atmospheric request",
