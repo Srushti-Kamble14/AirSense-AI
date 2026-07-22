@@ -36,13 +36,20 @@ Traditional AQI platforms only display current pollution levels. AirSenseAI goes
 ---
 
 # 🖥️ Screenshots
+### Dashboard
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/5495cab0-c7e0-4a90-b673-17f2a3c46927" width="90%" alt="Dashboard">
+</p>
 
-| <img width="1911" height="902" alt="image" src="https://github.com/user-attachments/assets/5495cab0-c7e0-4a90-b673-17f2a3c46927" />
-<img width="1901" height="897" alt="image" src="https://github.com/user-attachments/assets/58791043-2332-4099-be28-f72c4ab1b415" />
-<img width="1911" height="906" alt="image" src="https://github.com/user-attachments/assets/5609efd3-c3de-443e-b2fe-8f9a1f1923bd" />
+### Prediction
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/58791043-2332-4099-be28-f72c4ab1b415" width="90%" alt="Prediction">
+</p>
 
-
----
+### Analytics
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/5609efd3-c3de-443e-b2fe-8f9a1f1923bd" width="90%" alt="Analytics">
+</p>
 
 # 🏗️ System Architecture
 
@@ -79,7 +86,6 @@ Traditional AQI platforms only display current pollution levels. AirSenseAI goes
         Interactive Dashboard
 ```
 
----
 
 # ⚙️ Tech Stack
 
@@ -123,8 +129,11 @@ Traditional AQI platforms only display current pollution levels. AirSenseAI goes
 # 🤖 Machine Learning
 
 AirSenseAI uses an **XGBoost Regression Model** to predict future AQI.
+| Feature Importance | Actual vs Predicted AQI | Residual Plot |
+|:------------------:|:-----------------------:|:-------------:|
+| <img src="https://github.com/user-attachments/assets/f4ddb2a1-d149-45d1-bad9-34e5a5dfae81" alt="Feature Importance" width="100%"> | <img src="https://github.com/user-attachments/assets/c1961f59-cc7b-4ba1-8c70-8fc3ffe9e959" alt="Actual vs Predicted AQI" width="100%"> | <img src="https://github.com/user-attachments/assets/ddf408a7-20b1-4b17-b00b-067de7986e87" alt="Residual Plot" width="100%"> |
 
-### Workflow
+# 🛠️ Workflow
 
 - Data Collection
 - Data Cleaning
