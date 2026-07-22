@@ -1,4 +1,4 @@
-<img width="1911" height="902" alt="image" src="https://github.com/user-attachments/assets/2a9674bb-eef0-4731-9aef-877595a99807" /># 🌍 AirSenseAI – AI-Powered Air Quality Prediction & Health Advisory Platform
+# 🌍 AirSenseAI – AI-Powered Air Quality Prediction & Health Advisory Platform
 
 AirSenseAI is an intelligent environmental monitoring platform that combines **real-time weather data, live air quality measurements, and Machine Learning** to predict future Air Quality Index (AQI) and provide personalized health recommendations.
 
@@ -34,7 +34,6 @@ https://drive.google.com/drive/folders/18tMpmVVdhssCbzzd5inqZzshSMKX5k9n
 
 # 🖥️ Screenshots
 
-| Dashboard | Prediction |
 |----------|-----------|
 | <img width="1911" height="902" alt="image" src="https://github.com/user-attachments/assets/5495cab0-c7e0-4a90-b673-17f2a3c46927" />
 <img width="1901" height="897" alt="image" src="https://github.com/user-attachments/assets/58791043-2332-4099-be28-f72c4ab1b415" />
