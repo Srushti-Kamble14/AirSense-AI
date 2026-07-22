@@ -17,6 +17,9 @@ Unlike traditional AQI dashboards that only display current pollution levels, Ai
 https://drive.google.com/drive/folders/18tMpmVVdhssCbzzd5inqZzshSMKX5k9n
 
 ---
+# 🎯 Problem Statement
+
+Traditional AQI platforms only display current pollution levels. AirSenseAI goes one step further by combining **Artificial Intelligence, real-time environmental monitoring, and predictive analytics** to forecast future AQI and generate meaningful health recommendations.
 
 ## ✨ Features
 
@@ -34,7 +37,6 @@ https://drive.google.com/drive/folders/18tMpmVVdhssCbzzd5inqZzshSMKX5k9n
 
 # 🖥️ Screenshots
 
-|----------|-----------|
 | <img width="1911" height="902" alt="image" src="https://github.com/user-attachments/assets/5495cab0-c7e0-4a90-b673-17f2a3c46927" />
 <img width="1901" height="897" alt="image" src="https://github.com/user-attachments/assets/58791043-2332-4099-be28-f72c4ab1b415" />
 <img width="1911" height="906" alt="image" src="https://github.com/user-attachments/assets/5609efd3-c3de-443e-b2fe-8f9a1f1923bd" />
@@ -131,6 +133,7 @@ AirSenseAI uses an **XGBoost Regression Model** to predict future AQI.
 - Model Evaluation
 - AQI Prediction
 - Health Recommendation
+<img width="967" height="458" alt="image" src="https://github.com/user-attachments/assets/1455f580-ddf3-4510-ad0b-068605e54bcf" />
 
 ---
 
@@ -153,23 +156,110 @@ AirSenseAI uses an **XGBoost Regression Model** to predict future AQI.
 # 📂 Project Structure
 
 ```
-AirSenseAI
+AIRSENSE-AI/
+├── backend/
+│   ├── app/
+│   │   ├── __pycache__/
+│   │   ├── config/
+│   │   │   └── settings.py
+│   │   ├── core/
+│   │   │   ├── config.py
+│   │   │   └── security.py
+│   │   ├── crud/
+│   │   │   └── crud_aqi.py
+│   │   ├── database/
+│   │   │   ├── base.py
+│   │   │   └── session.py
+│   │   ├── models/
+│   │   │   ├── aqi.py
+│   │   │   ├── location.py
+│   │   │   ├── user.py
+│   │   │   └── weather.py
+│   │   ├── routes/
+│   │   │   ├── advisory.py
+│   │   │   ├── auth.py
+│   │   │   ├── predict.py
+│   │   │   └── weather.py
+│   │   ├── scheduler/
+│   │   │   └── jobs.py
+│   │   ├── schemas/
+│   │   │   ├── aqi.py
+│   │   │   └── location.py
+│   │   ├── services/
+│   │   │   ├── openaq_service.py
+│   │   │   └── openweather_service.py
+│   │   ├── utils/
+│   │   │   └── geocoding.py
+│   │   ├── __init__.py
+│   │   └── main.py
+│   ├── ml/
+│   │   ├── __pycache__/
+│   │   ├── models/
+│   │   │   └── model.pkl
+│   │   ├── __init__.py
+│   │   ├── .gitkeep
+│   │   ├── evaluate.py
+│   │   ├── predict.py
+│   │   ├── preprocess.py
+│   │   └── train_model.py
+│   ├── tests/
+│   │   └── .gitkeep
+│   ├── venv/
+│   ├── .env
+│   ├── .env.example
+│   ├── .gitignore
+│   ├── README.md
+│   └── requirements.txt
+
 │
-├── backend
-│   ├── app
-│   ├── ml
-│   ├── models
-│   ├── routes
-│   ├── services
-│   └── scheduler
-│
-├── frontend
-│   ├── app
-│   ├── components
-│   ├── public
-│   └── styles
-│
-└── README.md
+└── frontend/
+    ├── .next/
+    ├── app/
+    │   ├── api/
+    │   ├── favicon.ico
+    │   ├── globals.css
+    │   ├── layout.jsx
+    │   └── page.jsx
+    ├── components/
+    │   ├── ai/
+    │   │   └── AIAssistant.jsx
+    │   ├── boot/
+    │   ├── cards/
+    │   │   ├── CurrentAQICard.jsx
+    │   │   ├── CurrentWeatherCard.jsx
+    │   │   └── PredictionCard.jsx
+    │   ├── charts/
+    │   │   └── AQIChart.jsx
+    │   ├── dashboard/
+    │   │   └── DashboardLayout.jsx
+    │   ├── effects/
+    │   ├── layout/
+    │   │   ├── Navbar.jsx
+    │   │   └── Footer.jsx
+    │   ├── map/
+    │   │   └── InteractiveMap.jsx
+    │   ├── particles/
+    │   ├── prediction/
+    │   │   └── HealthAdvisory.jsx
+    │   ├── quotes/
+    │   ├── search/
+    │   │   └── SuperSearch.jsx
+    │   ├── sky/
+    │   ├── ui/
+    │   └── weather/
+    ├── constants/
+    ├── data/
+    ├── hooks/
+    ├── lib/
+    │   └── utils.js
+    ├── node_modules/
+    ├── services/
+    │   └── api.js
+    ├── .env.local
+    ├── .gitignore
+    ├── jsconfig.json
+    ├── next.config.mjs
+    └── package-lock.json 
 ```
 
 ---
@@ -244,33 +334,6 @@ NEXT_PUBLIC_API_BASE_URL=
 - Satellite Data Integration
 - Personalized Health Profiles
 - Smart City Integration
-
-
----
-
-# 🎯 Problem Statement
-
-Traditional AQI platforms only display current pollution levels. AirSenseAI goes one step further by combining **Artificial Intelligence, real-time environmental monitoring, and predictive analytics** to forecast future AQI and generate meaningful health recommendations.
-
----
-
-# 💡 Key Highlights
-
-✅ AI-powered AQI Prediction
-
-✅ Real-time Weather & Pollution Monitoring
-
-✅ Interactive Map
-
-✅ Health Advisory System
-
-✅ XGBoost Machine Learning
-
-✅ PostgreSQL Database
-
-✅ FastAPI Backend
-
-✅ Next.js Frontend
 
 ---
 
